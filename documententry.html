@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Entry - LGU Mercedes Document Tracking System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <i class="fas fa-building"></i>
+                </div>
+                <h1>LGU Mercedes</h1>
+            </div>
+
+            <nav class="nav-menu">
+                <ul>
+                    <li>
+                        <a href="index.html" class="nav-item" data-page="dashboard">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="trackdocument.html" class="nav-item" data-page="track">
+                            <i class="fas fa-search"></i>
+                            <span>Track Documents</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="documententry.html" class="nav-item active" data-page="entry">
+                            <i class="fas fa-file-upload"></i>
+                            <span>Document Entry</span>
+                        </a>
+                    </li>
+                    <li class="divider"></li>
+                    <li>
+                        <a href="incoming.html" class="nav-item" data-page="incoming">
+                            <i class="fas fa-inbox"></i>
+                            <span>Incoming</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="received.html" class="nav-item" data-page="received">
+                            <i class="fas fa-envelope-open"></i>
+                            <span>Received</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="returned.html" class="nav-item" data-page="returned">
+                            <i class="fas fa-undo"></i>
+                            <span>Returned</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="finished.html" class="nav-item" data-page="finished">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Finished</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="archive.html" class="nav-item" data-page="archive">
+                            <i class="fas fa-archive"></i>
+                            <span>Archive</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <img src="https://via.placeholder.com/40" alt="User Avatar" class="avatar">
+                    <div class="user-info">
+                        <p class="user-name" id="userNameDisplay">Guest User</p>
+                        <p class="user-role">User</p>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-secondary" onclick="handleLogout()" style="width: 100%; margin-top: 12px;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Document Entry Page -->
+            <div class="page active">
+                <div class="page-header">
+                    <div class="header-with-button">
+                        <div>
+                            <h2>Document Entry</h2>
+                            <p>Manage and create new documents</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="openCreateDocumentModal()">
+                            <i class="fas fa-plus"></i> Create Document
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table documents-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date Created</th>
+                                <th>Document Title</th>
+                                <th>Date Issued</th>
+                                <th>Document Code</th>
+                                <th>Description</th>
+                                <th>Document Type</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="documentsTableBody">
+                            <tr>
+                                <td>DOC-001</td>
+                                <td>April 10, 2026</td>
+                                <td>Travel Order - Conference</td>
+                                <td>April 11, 2026</td>
+                                <td>TO-2026-001</td>
+                                <td>Travel authorization for staff training</td>
+                                <td><span class="badge badge-info">Travel Order</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>DOC-002</td>
+                                <td>April 8, 2026</td>
+                                <td>Executive Order - Policy Update</td>
+                                <td>April 9, 2026</td>
+                                <td>EO-2026-015</td>
+                                <td>New administrative policy implementation</td>
+                                <td><span class="badge badge-warning">Executive Order</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>DOC-003</td>
+                                <td>April 5, 2026</td>
+                                <td>Office Order - Duty Assignment</td>
+                                <td>April 6, 2026</td>
+                                <td>OO-2026-042</td>
+                                <td>Assignment of personnel to department</td>
+                                <td><span class="badge badge-success">Office Order</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+
+        <!-- Create Document Modal -->
+        <div id="createDocumentModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Create New Document</h3>
+                    <button class="modal-close" onclick="closeCreateDocumentModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <form id="createDocumentForm" onsubmit="handlePreviewDocument(event)">
+                    <div class="modal-body">
+                        <!-- Generic Fields (Always Visible) -->
+                        <div class="form-section">
+                            <h4 class="section-title">Document Information</h4>
+                            
+                            <div class="form-group">
+                                <label for="modalDocTitle">Document Title *</label>
+                                <input type="text" id="modalDocTitle" name="title" required placeholder="Enter document title">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="modalDocType">Document Type *</label>
+                                <select id="modalDocType" name="type" required onchange="updateDynamicForm()">
+                                    <option value="">Select a document type</option>
+                                    <option value="Travel Order">Travel Order</option>
+                                    <option value="Executive Order">Executive Order</option>
+                                    <option value="Office Order">Office Order</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Travel Order Form -->
+                        <div id="travelOrderForm" class="dynamic-form-section" style="display: none;">
+                            <div class="form-section">
+                                <h4 class="section-title">Travel Order Details</h4>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="toNumber">Travel Order Number *</label>
+                                        <input type="text" id="toNumber" placeholder="Auto-generated" readonly style="background-color: #f0f0f0; cursor: not-allowed;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="toDate">Date Issued *</label>
+                                        <input type="date" id="toDate" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Personnel to Travel *</label>
+                                    <div id="personnelList">
+                                        <div class="multi-entry-item">
+                                            <input type="text" placeholder="Name of Employee / Personnel" class="traveler-name" required>
+                                            <input type="text" placeholder="Position/Designation" class="traveler-position" required>
+                                            <button type="button" class="btn btn-sm btn-secondary" onclick="removePersonnel(this)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="addPersonnel()">
+                                        <i class="fas fa-plus"></i> Add Personnel
+                                    </button>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="toFrom">FROM (Approving Authority) *</label>
+                                        <input type="text" id="toFrom" placeholder="e.g., Alexander Pajarillo, Municipal Mayor" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="toSubject">SUBJECT *</label>
+                                        <input type="text" id="toSubject" placeholder="e.g., As Stated" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="travelPurpose">Purpose / Details of Travel *</label>
+                                    <textarea id="travelPurpose" placeholder="Enter purpose of travel" rows="3" required></textarea>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="travelDestination">Destination *</label>
+                                        <input type="text" id="travelDestination" placeholder="e.g., Legazpi City" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="travelStartDate">Start Date *</label>
+                                        <input type="date" id="travelStartDate" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="travelEndDate">End Date *</label>
+                                        <input type="date" id="travelEndDate" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="travelDuration">Duration (days) *</label>
+                                        <input type="number" id="travelDuration" min="1" placeholder="e.g., 2" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="travelMode">Mode of Transportation *</label>
+                                        <select id="travelMode" required>
+                                            <option value="">Select mode</option>
+                                            <option value="Land">Land</option>
+                                            <option value="Air">Air</option>
+                                            <option value="Sea">Sea</option>
+                                            <option value="Mixed">Mixed</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Executive Order Form -->
+                        <div id="executiveOrderForm" class="dynamic-form-section" style="display: none;">
+                            <div class="form-section">
+                                <h4 class="section-title">Executive Order Details</h4>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="eoNumber">Order Number *</label>
+                                        <input type="text" id="eoNumber" placeholder="e.g., EO-2026-001" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="eoTitle">Title of Executive Order *</label>
+                                        <input type="text" id="eoTitle" placeholder="Enter order title" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="eoLegalBasis">Legal Basis *</label>
+                                    <input type="text" id="eoLegalBasis" placeholder="e.g., Chapter 2, Article 5 of the Municipal Code" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="eoDescription">Description / Content *</label>
+                                    <textarea id="eoDescription" rows="5" placeholder="Enter the full content or description of the executive order" required></textarea>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="eoDateIssued">Date Issued *</label>
+                                        <input type="date" id="eoDateIssued" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="eoSignatory">Signatory (Mayor, Official) *</label>
+                                        <input type="text" id="eoSignatory" placeholder="Name of signatory" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Office Order Form -->
+                        <div id="officeOrderForm" class="dynamic-form-section" style="display: none;">
+                            <div class="form-section">
+                                <h4 class="section-title">Office Order Details</h4>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ooNumber">Office Order Number *</label>
+                                        <input type="text" id="ooNumber" placeholder="e.g., OO-2026-001" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ooDate">Effectivity Date *</label>
+                                        <input type="date" id="ooDate" required>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Assigned Personnel *</label>
+                                    <div id="assignedPersonnelList">
+                                        <div class="multi-entry-item">
+                                            <input type="text" placeholder="Name of Personnel" class="assigned-personnel" required>
+                                            <button type="button" class="btn btn-sm btn-secondary" onclick="removeAssignedPersonnel(this)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="addAssignedPersonnel()">
+                                        <i class="fas fa-plus"></i> Add Personnel
+                                    </button>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="ooTask">Task / Instruction *</label>
+                                    <textarea id="ooTask" rows="4" placeholder="Enter the task or instruction" required></textarea>
+                                </div>
+
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="ooDepartment">Department *</label>
+                                        <input type="text" id="ooDepartment" placeholder="e.g., Administration, Finance" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ooRemarks">Remarks</label>
+                                        <input type="text" id="ooRemarks" placeholder="Optional remarks or notes">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeCreateDocumentModal()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="previewDocument()">
+                            <i class="fas fa-eye"></i> Preview
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal Backdrop -->
+        <div id="modalBackdrop" class="modal-backdrop" onclick="closeCreateDocumentModal()"></div>
+
+        <!-- Document Preview Modal -->
+        <div id="previewDocumentModal" class="modal">
+            <div class="modal-content modal-preview">
+                <div class="modal-header">
+                    <h3>Document Preview</h3>
+                    <button class="modal-close" onclick="closePreviewModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body" id="previewContent" style="padding: 0;">
+                    <!-- Preview content will be inserted here -->
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closePreviewModal()">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="submitDocumentFromPreview()">
+                        <i class="fas fa-check"></i> Confirm & Submit
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirmation Modal -->
+        <div id="confirmSubmitModal" class="modal">
+            <div class="modal-content modal-confirm">
+                <div class="modal-header">
+                    <h3>Confirm Submission</h3>
+                    <button class="modal-close" onclick="closeConfirmModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div class="confirm-message">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <h4>Are you sure you want to submit this document?</h4>
+                        <p>Please verify all the information is correct before confirming.</p>
+                        <div id="confirmDetails" class="confirm-details"></div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeConfirmModal()">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="finalizeSubmission()">
+                        <i class="fas fa-check"></i> Yes, Submit
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Backdrop for other modals -->
+        <div id="previewBackdrop" class="modal-backdrop" onclick="closePreviewModal()"></div>
+        <div id="confirmBackdrop" class="modal-backdrop" onclick="closeConfirmModal()"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

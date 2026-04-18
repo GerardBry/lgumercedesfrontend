@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finished - LGU Mercedes Document Tracking System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <i class="fas fa-building"></i>
+                </div>
+                <h1>LGU Mercedes</h1>
+            </div>
+
+            <nav class="nav-menu">
+                <ul>
+                    <li>
+                        <a href="index.html" class="nav-item" data-page="dashboard">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="trackdocument.html" class="nav-item" data-page="track">
+                            <i class="fas fa-search"></i>
+                            <span>Track Documents</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="documententry.html" class="nav-item" data-page="entry">
+                            <i class="fas fa-file-upload"></i>
+                            <span>Document Entry</span>
+                        </a>
+                    </li>
+                    <li class="divider"></li>
+                    <li>
+                        <a href="incoming.html" class="nav-item" data-page="incoming">
+                            <i class="fas fa-inbox"></i>
+                            <span>Incoming</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="received.html" class="nav-item" data-page="received">
+                            <i class="fas fa-envelope-open"></i>
+                            <span>Received</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="returned.html" class="nav-item" data-page="returned">
+                            <i class="fas fa-undo"></i>
+                            <span>Returned</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="finished.html" class="nav-item active" data-page="finished">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Finished</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="archive.html" class="nav-item" data-page="archive">
+                            <i class="fas fa-archive"></i>
+                            <span>Archive</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <img src="https://via.placeholder.com/40" alt="User Avatar" class="avatar">
+                    <div class="user-info">
+                        <p class="user-name" id="userNameDisplay">Guest User</p>
+                        <p class="user-role">User</p>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-secondary" onclick="handleLogout()" style="width: 100%; margin-top: 12px;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="page active">
+                <div class="page-header">
+                    <div class="header-with-button">
+                        <div>
+                            <h2>Finished Documents</h2>
+                            <p>Completed and fully processed documents</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Document ID</th>
+                                <th>Date Finished</th>
+                                <th>Document Title</th>
+                                <th>Document Code</th>
+                                <th>Document Type</th>
+                                <th>Processed By</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>DOC-001</td>
+                                <td>April 15, 2026</td>
+                                <td>Travel Order - Conference</td>
+                                <td>TO-2026-001</td>
+                                <td><span class="badge badge-info">Travel Order</span></td>
+                                <td>Administrative Staff</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</button>
+                                    <button class="btn btn-sm btn-primary"><i class="fas fa-archive"></i> Archive</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>DOC-002</td>
+                                <td>April 12, 2026</td>
+                                <td>Executive Order - Policy Update</td>
+                                <td>EO-2026-015</td>
+                                <td><span class="badge badge-warning">Executive Order</span></td>
+                                <td>Executive Office</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</button>
+                                    <button class="btn btn-sm btn-primary"><i class="fas fa-archive"></i> Archive</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>DOC-003</td>
+                                <td>April 10, 2026</td>
+                                <td>Office Order - Duty Assignment</td>
+                                <td>OO-2026-042</td>
+                                <td><span class="badge badge-success">Office Order</span></td>
+                                <td>HR Department</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</button>
+                                    <button class="btn btn-sm btn-primary"><i class="fas fa-archive"></i> Archive</button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>DOC-009</td>
+                                <td>April 6, 2026</td>
+                                <td>Travel Order - Training</td>
+                                <td>TO-2026-008</td>
+                                <td><span class="badge badge-info">Travel Order</span></td>
+                                <td>Administrative Staff</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info"><i class="fas fa-eye"></i> View</button>
+                                    <button class="btn btn-sm btn-primary"><i class="fas fa-archive"></i> Archive</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

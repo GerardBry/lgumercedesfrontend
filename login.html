@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - LGU Mercedes Document Tracking System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body .auth-screen::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.82);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        body #loginForm {
+            position: relative;
+            z-index: 2;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-screen active" style="background: #ffffff url('img/LGU-Mercedes-Official-Logo.png') center/850px no-repeat fixed !important;">
+        <!-- Login Form -->
+        <div id="loginForm" class="auth-form-container active">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <img src="img/LGU-Mercedes-Official-Logo.png" alt="LGU Mercedes Logo" class="auth-logo">
+                    <h1>LGU Mercedes</h1>
+                    <p>Document Tracking System</p>
+                </div>
+
+                <form class="auth-form" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email Address</label>
+                        <input type="email" id="loginEmail" name="email" placeholder="Enter your email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" name="password" placeholder="Enter your password" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-large">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>Don't have an account? <a href="register.html">Register here</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        function handleLogin(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            if (email && password) {
+                // Store user data in sessionStorage
+                sessionStorage.setItem('userEmail', email);
+                sessionStorage.setItem('userName', email.split('@')[0]);
+                sessionStorage.setItem('isLoggedIn', 'true');
+                
+                showNotification(`Welcome back! Logged in as ${email}`, 'success');
+                
+                // Redirect to dashboard
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1000);
+            } else {
+                showNotification('Please fill in all fields', 'warning');
+            }
+        }
+    </script>
+</body>
+</html>

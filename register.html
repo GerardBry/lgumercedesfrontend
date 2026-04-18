@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - LGU Mercedes Document Tracking System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body.register-page .auth-screen {
+            background: #ffffff;
+            background-image: url('img/LGU-Mercedes-Official-Logo.png');
+            background-size: 850px 850px;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        body.register-page .auth-screen::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.82);
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        body.register-page #registerForm {
+            position: relative;
+            z-index: 2;
+            display: flex !important;
+            justify-content: center !important;
+            width: 100%;
+            margin: 0 auto !important;
+        }
+
+        body.register-page .auth-card {
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            border-radius: 16px;
+            margin: 0 auto !important;
+        }
+    </style>
+</head>
+<body class="register-page">
+    <div class="auth-screen active">
+        <!-- Register Form -->
+        <div id="registerForm" class="auth-form-container active">
+            <div class="auth-card" style="max-width: 900px; width: 95vw; max-height: 90vh; overflow-y: auto;">
+                <div class="auth-header">
+                    <img src="img/LGU-Mercedes-Official-Logo.png" alt="LGU Mercedes Logo" class="auth-logo">
+                    <h1>Create Account</h1>
+                    <p>LGU Mercedes Document Tracking System</p>
+                </div>
+
+                <form class="auth-form" onsubmit="handleRegister(event)">
+                    <!-- Name Fields -->
+                    <h4 class="form-section-title">Personal Information</h4>
+                    
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label for="regLastName">Last Name *</label>
+                            <input type="text" id="regLastName" name="lastName" placeholder="Last name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="regFirstName">First Name *</label>
+                            <input type="text" id="regFirstName" name="firstName" placeholder="First name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="regMiddleName">Middle Name</label>
+                            <input type="text" id="regMiddleName" name="middleName" placeholder="Middle name">
+                        </div>
+                    </div>
+
+                    <!-- Civil Status -->
+                    <div class="form-group">
+                        <label for="regCivilStatus">Civil Status *</label>
+                        <select id="regCivilStatus" name="civilStatus" required>
+                            <option value="">Select civil status</option>
+                            <option value="Single">Single</option>
+                            <option value="Married">Married</option>
+                            <option value="Divorced">Divorced</option>
+                            <option value="Widowed">Widowed</option>
+                        </select>
+                    </div>
+
+                    <!-- Date of Birth & Age -->
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label for="regDateOfBirth">Date of Birth *</label>
+                            <input type="date" id="regDateOfBirth" name="dateOfBirth" required onchange="calculateAge()">
+                        </div>
+                        <div class="form-group">
+                            <label for="regAge">Age</label>
+                            <input type="number" id="regAge" name="age" placeholder="Auto-calculated" readonly style="background-color: #f0f0f0; cursor: not-allowed;">
+                        </div>
+                    </div>
+
+                    <!-- Office Information -->
+                    <h4 class="form-section-title">Office Information</h4>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label for="regPosition">Position *</label>
+                            <input type="text" id="regPosition" name="position" placeholder="Your position/designation" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="regOffice">Office *</label>
+                            <input type="text" id="regOffice" name="office" placeholder="Your office/department" required>
+                        </div>
+                    </div>
+
+                    <!-- Address -->
+                    <div class="form-group">
+                        <label for="regAddress">Address (Barangay) *</label>
+                        <select id="regAddress" name="address" required>
+                            <option value="">Select barangay</option>
+                            <option value="Barangay 1">Barangay 1</option>
+                            <option value="Barangay 2">Barangay 2</option>
+                            <option value="Barangay 3">Barangay 3</option>
+                            <option value="Barangay 4">Barangay 4</option>
+                            <option value="Barangay 5">Barangay 5</option>
+                            <option value="Barangay 6">Barangay 6</option>
+                            <option value="Barangay 7">Barangay 7</option>
+                            <option value="Barangay 8">Barangay 8</option>
+                            <option value="Barangay 9">Barangay 9</option>
+                            <option value="Poblacion">Poblacion</option>
+                        </select>
+                    </div>
+
+                    <!-- Account Information -->
+                    <h4 class="form-section-title">Account Details</h4>
+
+                    <div class="form-group">
+                        <label for="regEmail">Email Address *</label>
+                        <input type="email" id="regEmail" name="email" placeholder="Enter your email" required>
+                    </div>
+
+                    <div class="form-row-2">
+                        <div class="form-group">
+                            <label for="regPassword">Password *</label>
+                            <input type="password" id="regPassword" name="password" placeholder="Enter password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="regConfirmPassword">Confirm Password *</label>
+                            <input type="password" id="regConfirmPassword" name="confirmPassword" placeholder="Confirm password" required>
+                        </div>
+                    </div>
+
+                    <!-- Terms & Agreement -->
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="regTerms" name="terms" required>
+                        <label for="regTerms">I agree to the Terms and Conditions *</label>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary btn-large">
+                        <i class="fas fa-user-plus"></i> Create Account
+                    </button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>Already have an account? <a href="login.html">Login here</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        function calculateAge() {
+            const dateOfBirth = document.getElementById('regDateOfBirth').value;
+            if (!dateOfBirth) return;
+            
+            const birthDate = new Date(dateOfBirth);
+            const today = new Date();
+            
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            
+            document.getElementById('regAge').value = age;
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            
+            const firstName = document.getElementById('regFirstName').value;
+            const lastName = document.getElementById('regLastName').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const confirmPassword = document.getElementById('regConfirmPassword').value;
+            const terms = document.getElementById('regTerms').checked;
+            
+            if (!firstName || !lastName || !email || !password || !confirmPassword || !terms) {
+                showNotification('Please fill in all required fields and agree to terms', 'warning');
+                return;
+            }
+            
+            if (password !== confirmPassword) {
+                showNotification('Passwords do not match', 'warning');
+                return;
+            }
+            
+            if (password.length < 6) {
+                showNotification('Password must be at least 6 characters', 'warning');
+                return;
+            }
+            
+            // Store user data in sessionStorage
+            const fullName = `${firstName} ${lastName}`;
+            sessionStorage.setItem('userName', fullName);
+            sessionStorage.setItem('userEmail', email);
+            sessionStorage.setItem('isLoggedIn', 'true');
+            
+            showNotification(`Account created successfully! Welcome ${firstName}`, 'success');
+            
+            // Redirect to dashboard
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
