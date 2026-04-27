@@ -1,0 +1,443 @@
+<?php
+/**
+ * Outgoing Documents Page - Department Staff
+ * View documents sent by this staff member
+ */
+session_start();
+
+// Check if user is logged in
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+// STRICT ROLE-BASED ACCESS CONTROL - Only regular users allowed
+if (isset($_SESSION['role'])) {
+    // Block Super Admin
+    if ($_SESSION['role'] === 'Super Admin') {
+        header('Location: admin/admin-dashboard.php');
+        exit;
+    }
+    // Block Administrative Assistant
+    if ($_SESSION['role'] === 'Administrative Assistant') {
+        header('Location: administrative/admin-dashboard-staff.php');
+        exit;
+    }
+}
+
+// Get user info from session
+$user_id = $_SESSION['user_id'];
+$first_name = $_SESSION['first_name'] ?? 'User';
+$last_name = $_SESSION['last_name'] ?? '';
+$role = $_SESSION['role'] ?? 'User';
+
+// Fetch full user details from database
+require_once 'config/db_connect.php';
+
+$user_details = null;
+$sql = "SELECT * FROM users WHERE id = ?";
+$stmt = $conn->prepare($sql);
+if ($stmt) {
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result->num_rows > 0) {
+        $user_details = $result->fetch_assoc();
+    }
+    $stmt->close();
+}
+
+// Fetch outgoing document assignments (documents created/sent by this user that have been assigned)
+$outgoing_documents = [];
+$sql = "SELECT 
+        d.id as document_id,
+        d.title,
+        d.description,
+        d.tracking_number,
+        d.document_type,
+        d.date_sent,
+        d.notes as doc_notes,
+        d.status,
+        da.id as assignment_id,
+        da.assigned_to,
+        da.office_department,
+        da.status as assignment_status,
+        da.assigned_at,
+        recipient.first_name as recipient_first_name,
+        recipient.last_name as recipient_last_name,
+        recipient.position as recipient_position
+    FROM document_assignments da
+    INNER JOIN documents d ON d.id = da.document_id
+    LEFT JOIN users recipient ON da.assigned_to = recipient.id
+    WHERE d.created_by = ? 
+    AND da.status != 'Completed'
+    ORDER BY d.created_at DESC";
+
+$stmt = $conn->prepare($sql);
+if ($stmt) {
+    $stmt->bind_param("i", $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $outgoing_documents[] = $row;
+    }
+    $stmt->close();
+}
+
+$conn->close();
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outgoing Documents - LGU Mercedes Document Tracking System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .btn-sm {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-info {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .btn-info:hover {
+            background-color: #bbdefb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <i class="fas fa-building"></i>
+                </div>
+                <h1>LGU Mercedes</h1>
+            </div>
+
+            <nav class="nav-menu">
+                <ul>
+                    <li>
+                        <a href="index.php" class="nav-item" data-page="dashboard">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="trackdocument.php" class="nav-item" data-page="track">
+                            <i class="fas fa-search"></i>
+                            <span>Track Documents</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="documententry.php" class="nav-item" data-page="entry">
+                            <i class="fas fa-file-upload"></i>
+                            <span>Document Entry</span>
+                        </a>
+                    </li>
+                    <li class="divider"></li>
+                    <li>
+                        <a href="incoming.php" class="nav-item" data-page="incoming">
+                            <i class="fas fa-inbox"></i>
+                            <span>Incoming</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="outgoing.php" class="nav-item active" data-page="outgoing">
+                            <i class="fas fa-paper-plane"></i>
+                            <span>Outgoing</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="received.php" class="nav-item" data-page="received">
+                            <i class="fas fa-envelope-open"></i>
+                            <span>Received</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="returned.php" class="nav-item" data-page="returned">
+                            <i class="fas fa-undo"></i>
+                            <span>Returned</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="finished.php" class="nav-item" data-page="finished">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Finished</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="archive.php" class="nav-item" data-page="archive">
+                            <i class="fas fa-archive"></i>
+                            <span>Archive</span>
+                        </a>
+                    </li>
+                    <li class="divider"></li>
+                    <li>
+                        <a href="profile.php" class="nav-item" data-page="profile">
+                            <i class="fas fa-user"></i>
+                            <span>My Profile</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="avatar"><?php echo strtoupper(substr($first_name, 0, 1) . substr($last_name, 0, 1)); ?></div>
+                    <div class="user-info">
+                        <p class="user-name" id="userNameDisplay"><?php echo htmlspecialchars($first_name . ' ' . $last_name); ?></p>
+                        <p class="user-role"><?php echo htmlspecialchars($role); ?></p>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="handleLogout()" style="width: 100%; margin-top: 12px;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="page active">
+                <div class="page-header">
+                    <div class="header-with-button">
+                        <div>
+                            <h2>Outgoing Documents</h2>
+                            <p>Documents you have sent to administrative staff</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Tracking Code</th>
+                                <th>Document Title</th>
+                                <th>Document Type</th>
+                                <th>Date Sent</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (count($outgoing_documents) > 0): ?>
+                                <?php foreach ($outgoing_documents as $doc): ?>
+                                    <tr>
+                                        <td>
+                                            <strong><?php echo htmlspecialchars($doc['tracking_number'] ?? 'N/A'); ?></strong>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($doc['title']); ?></td>
+                                        <td>
+                                            <span class="badge badge-info"><?php echo htmlspecialchars($doc['document_type'] ?? 'General'); ?></span>
+                                        </td>
+                                        <td><?php echo $doc['date_sent'] ? date('M d, Y h:i A', strtotime($doc['date_sent'])) : '-'; ?></td>
+                                        <td>
+                                            <?php 
+                                                $status = !empty($doc['assignment_status']) ? $doc['assignment_status'] : ($doc['status'] ?? 'Pending');
+                                                $badge_class = 'badge-info';
+                                                if ($status === 'Received' || $status === 'Approved' || $status === 'Completed') $badge_class = 'badge-success';
+                                                elseif ($status === 'Pending') $badge_class = 'badge-warning';
+                                                elseif ($status === 'Rejected' || $status === 'Returned') $badge_class = 'badge-warning';
+                                            ?>
+                                            <span class="badge <?php echo $badge_class; ?>"><?php echo htmlspecialchars($status); ?></span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-info" onclick="viewOutgoingDocument(<?php echo $doc['document_id']; ?>)">
+                                                <i class="fas fa-eye"></i> View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="6" class="empty-state">No outgoing documents</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- View Outgoing Document Modal -->
+    <div id="viewOutgoingModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Document Details</h3>
+                <button class="modal-close" onclick="closeOutgoingModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-height: 600px; overflow-y: auto;">
+                    <div>
+                        <div class="form-group">
+                            <label>Tracking Code</label>
+                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                                <span id="viewTrackingCode">-</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Document Type</label>
+                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                                <span id="viewDocumentType">-</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Document Title</label>
+                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                                <span id="viewTitle">-</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Description</label>
+                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                                <span id="viewDescription">-</span>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="form-group">
+                                <label>Date Sent</label>
+                                <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                                    <span id="viewDateSent">-</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Status</label>
+                                <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                                    <span id="viewStatus">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Form Details</label>
+                            <div id="viewFormDetails" style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 120px;"></div>
+                        </div>
+                    </div>
+
+                    <div style="border-left: 1px solid #ddd; padding-left: 20px;">
+                        <h4 style="margin: 0 0 10px 0; color: var(--text-dark);">Digitalized Paper Format</h4>
+                        <div id="viewDigitalPaperPreview"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeOutgoingModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        function safeParseJson(text) {
+            try {
+                return JSON.parse(text || '{}');
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function formatArray(value) {
+            if (!Array.isArray(value) || value.length === 0) {
+                return '-';
+            }
+            return value.join(', ');
+        }
+
+        function escapeText(value) {
+            if (typeof htmlEscape === 'function') {
+                return htmlEscape(value);
+            }
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function renderOutgoingFormDetails(doc, content) {
+            if (doc.document_type !== 'Travel Request') {
+                return '<p style="margin:0; color: var(--text-light);">No structured form fields available for this document type.</p>';
+            }
+
+            return `
+                <div style="display:grid; gap:8px; font-size:14px;">
+                    <div><strong>Travelers:</strong> ${escapeText(formatArray(content.travelers))}</div>
+                    <div><strong>From:</strong> ${escapeText(content.from || 'Municipal Mayor')}</div>
+                    <div><strong>Subject:</strong> ${escapeText(content.subject || '-')}</div>
+                    <div><strong>Purpose:</strong> ${escapeText(content.purpose || '-')}</div>
+                    <div><strong>Destination:</strong> ${escapeText(content.destination || '-')}</div>
+                    <div><strong>Start Date:</strong> ${escapeText(content.startDate || '-')}</div>
+                    <div><strong>End Date:</strong> ${escapeText(content.endDate || '-')}</div>
+                    <div><strong>Duration:</strong> ${escapeText(content.duration || '-')}</div>
+                    <div><strong>Mode:</strong> ${escapeText(content.mode || '-')}</div>
+                </div>
+            `;
+        }
+
+        function viewOutgoingDocument(documentId) {
+            // Fetch document details from server
+            fetch('outgoing-handler.php?action=view&id=' + documentId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.document) {
+                        const doc = data.document;
+                        const content = safeParseJson(doc.notes);
+                        
+                        // Populate modal with data
+                        document.getElementById('viewTrackingCode').textContent = doc.tracking_number || '-';
+                        document.getElementById('viewDocumentType').textContent = doc.document_type || '-';
+                        document.getElementById('viewTitle').textContent = doc.title || '-';
+                        document.getElementById('viewDescription').textContent = doc.description || '-';
+                        document.getElementById('viewDateSent').textContent = doc.date_sent ? new Date(doc.date_sent).toLocaleString() : '-';
+                        document.getElementById('viewStatus').textContent = doc.status || '-';
+                        document.getElementById('viewFormDetails').innerHTML = renderOutgoingFormDetails(doc, content);
+
+                        if (typeof generateDocumentPreview === 'function') {
+                            document.getElementById('viewDigitalPaperPreview').innerHTML = generateDocumentPreview(doc);
+                        } else {
+                            document.getElementById('viewDigitalPaperPreview').innerHTML = '<p style="margin:0; color: var(--text-light);">Preview renderer is unavailable.</p>';
+                        }
+                        
+                        // Open modal
+                        document.getElementById('viewOutgoingModal').classList.add('active');
+                    } else {
+                        alert('Error loading document details');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error loading document details');
+                });
+        }
+
+        function closeOutgoingModal() {
+            document.getElementById('viewOutgoingModal').classList.remove('active');
+        }
+    </script>
+</body>
+</html>

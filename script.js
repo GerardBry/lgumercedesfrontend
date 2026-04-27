@@ -4,18 +4,14 @@
 
 // Initialize the dashboard when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    // No authentication check - allow direct access to dashboard for frontend development
-    
-    const userName = sessionStorage.getItem('userName') || sessionStorage.getItem('userEmail') || 'Guest User';
-    const userNameDisplay = document.getElementById('userNameDisplay');
-    if (userNameDisplay) {
-        userNameDisplay.textContent = userName;
-    }
+    // Authentication is handled by PHP sessions
+    // User info is already populated in the page by PHP from $_SESSION
     
     initializeNavigation();
     initializeForm();
     setupFileUpload();
     initializeSearch();
+    initializeIncomingRequestPrefill();
 });
 
 // ==========================================
@@ -25,15 +21,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // Only handleLogout() is needed here for the dashboard
 
 function handleLogout() {
-    // Clear session storage
-    sessionStorage.clear();
-    
-    showNotification('Logged out successfully', 'info');
-    
-    // Redirect to login
-    setTimeout(() => {
-        window.location.href = 'login.html';
-    }, 800);
+    // Redirect to logout handler
+    window.location.href = 'logout.php';
 }
 
 
@@ -55,6 +44,65 @@ function openCreateDocumentModal() {
     setTimeout(() => {
         document.getElementById('modalDocTitle').focus();
     }, 100);
+}
+
+function initializeIncomingRequestPrefill() {
+    const modal = document.getElementById('createDocumentModal');
+    const typeSelect = document.getElementById('modalDocType');
+    const titleInput = document.getElementById('modalDocTitle');
+
+    // Only run on pages that contain the document entry modal.
+    if (!modal || !typeSelect || !titleInput) {
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fromIncoming') !== '1') {
+        return;
+    }
+
+    const sourceType = params.get('type') || '';
+    const sourceTitle = params.get('title') || '';
+    const sourceTrackingCode = params.get('tracking_code') || '';
+
+    let mappedType = sourceType;
+    if (sourceType === 'Travel Order' || sourceType === 'Request') {
+        mappedType = 'Travel Request';
+    }
+
+    openCreateDocumentModal();
+
+    // Set title from incoming assignment
+    titleInput.value = sourceTitle;
+    
+    // Set request type and make it read-only (cannot be changed)
+    if (Array.from(typeSelect.options).some(option => option.value === mappedType)) {
+        typeSelect.value = mappedType;
+    } else {
+        typeSelect.value = 'Travel Request';
+    }
+    // Lock the request type - cannot be changed when from incoming
+    typeSelect.disabled = true;
+    typeSelect.title = 'Request type is locked from the Administrative assignment';
+    
+    // Show tracking code info if available
+    if (sourceTrackingCode) {
+        // Add a tracking code display below the title
+        const trackingInfo = document.createElement('div');
+        trackingInfo.id = 'incomingTrackingInfo';
+        trackingInfo.className = 'alert alert-info mt-2';
+        trackingInfo.style.cssText = 'font-size: 0.9em; padding: 8px 12px;';
+        trackingInfo.innerHTML = '<strong>Tracking Code:</strong> ' + sourceTrackingCode + 
+            '<br><small class="text-muted">This tracking code is linked to your Administrative assignment</small>';
+        
+        // Insert after title input
+        titleInput.parentElement.appendChild(trackingInfo);
+        
+        // Store tracking code in a hidden field or data attribute
+        titleInput.setAttribute('data-incoming-tracking', sourceTrackingCode);
+    }
+
+    updateDynamicForm();
 }
 
 function closeCreateDocumentModal() {
@@ -90,11 +138,11 @@ function updateDynamicForm() {
     officeOrderForm.style.display = 'none';
     
     // Show selected form
-    if (docType === 'Travel Order') {
+    if (docType === 'Travel Request') {
         travelOrderForm.style.display = 'block';
         // Initialize single personnel entry
         initializePersonnelList();
-        // Auto-generate Travel Order Number
+        // Auto-generate Travel Request Number
         generateTravelOrderNumber();
     } else if (docType === 'Executive Order') {
         executiveOrderForm.style.display = 'block';
@@ -106,7 +154,7 @@ function updateDynamicForm() {
 }
 
 // ==========================================
-// AUTO-GENERATE TRAVEL ORDER NUMBER
+// AUTO-GENERATE TRAVEL REQUEST NUMBER
 // ==========================================
 
 function generateTravelOrderNumber() {
@@ -127,7 +175,7 @@ function hideDynamicForms() {
 }
 
 // ==========================================
-// PERSONNEL MANAGEMENT (Travel Order)
+// PERSONNEL MANAGEMENT (Travel Request)
 // ==========================================
 
 function initializePersonnelList() {
@@ -234,7 +282,7 @@ function previewDocument() {
     // Generate preview HTML
     let previewHTML = '';
     
-    if (docType === 'Travel Order') {
+    if (docType === 'Travel Request') {
         previewHTML = generateTravelOrderPreview(currentDocumentData);
     } else if (docType === 'Executive Order') {
         previewHTML = generateExecutiveOrderPreview(currentDocumentData);
@@ -261,7 +309,7 @@ function generateTravelOrderPreview(data) {
             <div class="document-header">
                 <div class="doc-municipality">Province of Camarines Norte</div>
                 <div class="doc-office">MUNICIPALITY OF MERCEDES<br>OFFICE OF THE MUNICIPAL MAYOR</div>
-                <div class="doc-title">TRAVEL ORDER</div>
+                <div class="doc-title">TRAVEL REQUEST</div>
                 <div class="doc-number">No. ${data.orderNumber || 'TBD'}</div>
             </div>
             
@@ -410,7 +458,73 @@ function closePreviewModal() {
 
 function submitDocumentFromPreview() {
     closePreviewModal();
-    showConfirmation(currentDocumentData);
+    // Save as draft/pending instead of immediate submission
+    saveDocumentAsDraft(currentDocumentData);
+}
+
+function saveDocumentAsDraft(docData) {
+    const docType = document.getElementById('modalDocType').value;
+    const title = document.getElementById('modalDocTitle').value;
+    
+    // Collect data
+    const data = collectDocumentData(docType);
+
+    // Create brief description
+    let description = '';
+    if (docType === 'Travel Request') {
+        description = `Travel to ${data.destination} - ${data.travelers.join(', ')}`;
+    } else if (docType === 'Executive Order') {
+        description = data.eoTitle || title;
+    } else if (docType === 'Office Order') {
+        const personnel = Array.from(document.querySelectorAll('.assigned-personnel')).map(el => el.value).join(', ');
+        description = `${personnel} - ${data.department}`;
+    }
+
+    // Generate document code
+    let docCode = '';
+    if (docType === 'Travel Request') {
+        docCode = document.getElementById('toNumber').value || generateDocCode(docType);
+    } else if (docType === 'Executive Order') {
+        docCode = document.getElementById('eoNumber').value || generateDocCode(docType);
+    } else if (docType === 'Office Order') {
+        docCode = document.getElementById('ooNumber').value || generateDocCode(docType);
+    }
+
+    // Prepare payload for saving as draft
+    const payload = {
+        action: 'save_draft',
+        document_type: docType,
+        title: title,
+        description: description,
+        doc_code: docCode,
+        content: data
+    };
+
+    fetch('documententry-handler.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            showNotification(data.message || 'Failed to save document', 'warning');
+            return;
+        }
+
+        closeCreateDocumentModal();
+        showNotification('Document saved to Document Entry. You can view and submit it from there.', 'success');
+
+        setTimeout(() => {
+            window.location.href = 'documententry.php';
+        }, 1500);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Failed to save document', 'warning');
+    });
 }
 
 function showConfirmation(docData) {
@@ -418,8 +532,8 @@ function showConfirmation(docData) {
     const details = `
         <div><strong>Document Type:</strong> ${docData.type}</div>
         <div><strong>Title:</strong> ${document.getElementById('modalDocTitle').value}</div>
-        ${docData.type === 'Travel Order' ? `<div><strong>Destination:</strong> ${docData.destination}</div>` : ''}
-        ${docData.type === 'Travel Order' ? `<div><strong>Travelers:</strong> ${docData.travelers.join(', ')}</div>` : ''}
+        ${docData.type === 'Travel Request' ? `<div><strong>Destination:</strong> ${docData.destination}</div>` : ''}
+        ${docData.type === 'Travel Request' ? `<div><strong>Travelers:</strong> ${docData.travelers.join(', ')}</div>` : ''}
         ${docData.type === 'Executive Order' ? `<div><strong>Order Number:</strong> ${docData.orderNumber}</div>` : ''}
         ${docData.type === 'Office Order' ? `<div><strong>Order Number:</strong> ${docData.orderNumber}</div>` : ''}
     `;
@@ -451,7 +565,7 @@ function collectDocumentData(docType) {
         dateIssued: formatDate(new Date(Date.now() + 86400000))
     };
     
-    if (docType === 'Travel Order') {
+    if (docType === 'Travel Request') {
         const travelers = Array.from(document.querySelectorAll('.traveler-name')).map(el => el.value);
         data.travelers = travelers;
         data.orderNumber = document.getElementById('toNumber').value;
@@ -504,10 +618,66 @@ function handleCreateDocument(e) {
     
     // Collect data
     const docData = collectDocumentData(docType);
+
+    // Create brief description
+    let description = '';
+    if (docType === 'Travel Request') {
+        description = `Travel to ${docData.destination} - ${docData.travelers.join(', ')}`;
+    } else if (docType === 'Executive Order') {
+        description = docData.eoTitle || title;
+    } else if (docType === 'Office Order') {
+        const personnel = Array.from(document.querySelectorAll('.assigned-personnel')).map(el => el.value).join(', ');
+        description = `${personnel} - ${docData.department}`;
+    }
+
+    // If this request came from Incoming, persist as a linked reply transaction.
+    const params = new URLSearchParams(window.location.search);
+    const sourceAssignmentId = params.get('assignment_id');
+    const sourceTrackingCode = params.get('tracking_code');
+    const isFromIncoming = params.get('fromIncoming') === '1' && sourceAssignmentId;
+    if (isFromIncoming) {
+        const payload = {
+            action: 'reply_from_incoming',
+            assignment_id: parseInt(sourceAssignmentId, 10),
+            title: title,
+            document_type: docType,
+            description: description,
+            content: docData,
+            tracking_code: sourceTrackingCode || ''
+        };
+
+        fetch('documententry-handler.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    showNotification(data.message || 'Failed to create document', 'warning');
+                    return;
+                }
+
+                closeCreateDocumentModal();
+                showNotification('Document created and saved to your Document Entry.', 'success');
+
+                setTimeout(() => {
+                    window.location.href = 'documententry.php';
+                }, 900);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Failed to create document', 'warning');
+            });
+
+        return;
+    }
     
     // Generate document code
     let docCode = '';
-    if (docType === 'Travel Order') {
+    if (docType === 'Travel Request') {
         docCode = document.getElementById('toNumber').value || generateDocCode(docType);
     } else if (docType === 'Executive Order') {
         docCode = document.getElementById('eoNumber').value || generateDocCode(docType);
@@ -527,17 +697,6 @@ function handleCreateDocument(e) {
         badgeClass = 'badge-warning';
     } else if (docType === 'Office Order') {
         badgeClass = 'badge-success';
-    }
-    
-    // Create brief description
-    let description = '';
-    if (docType === 'Travel Order') {
-        description = `Travel to ${docData.destination} - ${docData.travelers.join(', ')}`;
-    } else if (docType === 'Executive Order') {
-        description = docData.eoTitle || title;
-    } else if (docType === 'Office Order') {
-        const personnel = Array.from(document.querySelectorAll('.assigned-personnel')).map(el => el.value).join(', ');
-        description = `${personnel} - ${docData.department}`;
     }
     
     const displayDate = docData.dateIssued || docData.eoDateIssued || docData.effectivityDate || formatDate(new Date());
@@ -580,7 +739,7 @@ function generateDocCode(docType) {
     const year = new Date().getFullYear();
     const num = Math.floor(Math.random() * 9000) + 1000;
     
-    let prefix = 'TO'; // Travel Order
+    let prefix = 'TR'; // Travel Request
     if (docType === 'Executive Order') {
         prefix = 'EO';
     } else if (docType === 'Office Order') {
@@ -598,6 +757,216 @@ function formatDate(date) {
 function viewDocument(docID, docDataEncoded) {
     showNotification(`Viewing document: ${docID}`, 'info');
     // In a real application, this would display a preview of the document
+}
+
+// ==========================================
+// VIEW SAVED DOCUMENT FROM DOCUMENT ENTRY
+// ==========================================
+function viewSavedDocument(docId) {
+    // Fetch document details from server
+    fetch('get-document-details.php?id=' + docId, {
+        method: 'GET'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            showNotification('Failed to load document', 'warning');
+            return;
+        }
+        
+        // Show document details modal
+        displayDocumentDetailsModal(data.document);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Failed to load document', 'warning');
+    });
+}
+
+function displayDocumentDetailsModal(doc) {
+    // Build details HTML
+    let detailsHTML = `
+        <div class="document-details">
+            <div class="details-section">
+                <h4>Document Information</h4>
+                <div class="detail-row">
+                    <label>Tracking Code:</label>
+                    <span>${htmlEscape(doc.tracking_number)}</span>
+                </div>
+                <div class="detail-row">
+                    <label>Title:</label>
+                    <span>${htmlEscape(doc.title)}</span>
+                </div>
+                <div class="detail-row">
+                    <label>Document Type:</label>
+                    <span>${htmlEscape(doc.document_type)}</span>
+                </div>
+                <div class="detail-row">
+                    <label>Description:</label>
+                    <span>${htmlEscape(doc.description)}</span>
+                </div>
+                <div class="detail-row">
+                    <label>Date Created:</label>
+                    <span>${new Date(doc.created_at).toLocaleString()}</span>
+                </div>
+                <div class="detail-row">
+                    <label>Status:</label>
+                    <span><span class="badge badge-info">${htmlEscape(doc.status)}</span></span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Generate preview based on document type
+    let previewHTML = generateDocumentPreview(doc);
+    
+    // Show modal
+    document.getElementById('documentDetailsModalContent').innerHTML = detailsHTML;
+    document.getElementById('documentPreviewModalContent').innerHTML = previewHTML;
+    document.getElementById('documentDetailsModal').classList.add('active');
+    document.getElementById('documentDetailsBackdrop').classList.add('active');
+}
+
+function generateDocumentPreview(doc) {
+    // Parse the notes field which contains JSON content
+    let content = {};
+    try {
+        content = JSON.parse(doc.notes || '{}');
+    } catch (e) {
+        content = {};
+    }
+    
+    let preview = `<div class="document-preview">`;
+    
+    if (doc.document_type === 'Travel Request') {
+        preview += `
+            <div class="document-header">
+                <div class="doc-municipality">Province of Camarines Norte</div>
+                <div class="doc-office">MUNICIPALITY OF MERCEDES<br>OFFICE OF THE MUNICIPAL MAYOR</div>
+                <div class="doc-title">TRAVEL REQUEST</div>
+                <div class="doc-number">No. ${doc.tracking_number}</div>
+            </div>
+            <div class="document-body">
+                <div class="doc-line">
+                    <div class="doc-label">TO</div>
+                    <div class="doc-content">
+                        <div>${content.travelers ? content.travelers.join(', ') : '-'}</div>
+                    </div>
+                </div>
+                <div class="doc-line">
+                    <div class="doc-label">FROM</div>
+                    <div class="doc-content">${content.from || 'Municipal Mayor'}</div>
+                </div>
+                <div class="doc-line">
+                    <div class="doc-label">DATE</div>
+                    <div class="doc-content">${content.dateIssued || '-'}</div>
+                </div>
+                <div class="doc-line">
+                    <div class="doc-label">SUBJECT</div>
+                    <div class="doc-content">${content.subject || 'As Stated'}</div>
+                </div>
+                <div class="doc-paragraph">
+                    You are hereby directed to attend ${content.purpose || ''}.
+                </div>
+                <div class="doc-paragraph">
+                    <strong>Destination:</strong> ${content.destination || '-'}<br>
+                    <strong>Travel Dates:</strong> ${content.startDate || '-'} to ${content.endDate || '-'}<br>
+                    <strong>Duration:</strong> ${content.duration || '-'} day(s)<br>
+                    <strong>Mode of Transportation:</strong> ${content.mode || '-'}
+                </div>
+            </div>
+        `;
+    } else {
+        preview += `
+            <div class="document-preview-generic">
+                <h3>${htmlEscape(doc.title)}</h3>
+                <p>${htmlEscape(doc.description)}</p>
+                <p><small>Document Type: ${htmlEscape(doc.document_type)}</small></p>
+            </div>
+        `;
+    }
+    
+    preview += `</div>`;
+    return preview;
+}
+
+function htmlEscape(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function closeDocumentDetailsModal() {
+    document.getElementById('documentDetailsModal').classList.remove('active');
+    document.getElementById('documentDetailsBackdrop').classList.remove('active');
+}
+
+function editDocument() {
+    showNotification('Edit functionality coming soon!', 'info');
+    // In the future, this can open an edit form for the document
+}
+
+// ==========================================
+// FORWARD SAVED DOCUMENT FROM DOCUMENT ENTRY
+// ==========================================
+function forwardSavedDocument(docId) {
+    // Show the forward modal to enter incoming assignment tracking code
+    document.getElementById('forwardDocId').value = docId;
+    document.getElementById('forwardModal').classList.add('active');
+    document.getElementById('forwardBackdrop').classList.add('active');
+}
+
+function closeForwardModal() {
+    document.getElementById('forwardModal').classList.remove('active');
+    document.getElementById('forwardBackdrop').classList.remove('active');
+    document.getElementById('incomingTrackingCode').value = '';
+}
+
+function confirmForwardDocument() {
+    const docId = document.getElementById('forwardDocId').value;
+    const incomingTrackingCode = document.getElementById('incomingTrackingCode').value.trim().toUpperCase();
+    
+    if (!incomingTrackingCode) {
+        showNotification('Please enter the Administrative tracking code', 'warning');
+        return;
+    }
+    
+    // Send the forward request with both document ID and incoming tracking code
+    const payload = {
+        action: 'forward_document',
+        document_id: parseInt(docId, 10),
+        incoming_tracking_code: incomingTrackingCode
+    };
+    
+    fetch('forward-document-handler.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            showNotification(data.message || 'Failed to forward document', 'warning');
+            return;
+        }
+        
+        closeForwardModal();
+        showNotification(data.message || 'Document forwarded successfully with linked tracking code.', 'success');
+        
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Failed to forward document', 'warning');
+    });
 }
 
 // ==========================================
@@ -624,7 +993,7 @@ function initializeNavigation() {
         const href = item.getAttribute('href');
         
         // Mark the active nav item based on current page
-        if (href === currentPage || (href === 'index.html' && currentPage === '')) {
+        if (href === currentPage || (href === 'index.php' && currentPage === '')) {
             item.classList.add('active');
         }
         
@@ -977,7 +1346,7 @@ document.addEventListener('click', function(e) {
         } else if (buttonText.includes('download') || e.target.querySelector('i.fa-download')) {
             showNotification('Starting download...', 'success');
         } else if (buttonText.includes('view')) {
-            showNotification('Opening archived document...', 'info');
+            showNotification('Opening Document...', 'info');
         }
     }
 });

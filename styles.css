@@ -1341,6 +1341,63 @@ textarea {
     max-width: 450px;
 }
 
+.modal-content.modal-large {
+    max-width: 1300px;
+    max-height: 95vh;
+}
+
+.document-details {
+    padding: 20px 0;
+}
+
+.details-section {
+    margin-bottom: 20px;
+}
+
+.details-section h4 {
+    margin-bottom: 15px;
+    font-weight: 600;
+    color: var(--text-dark);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 8px;
+}
+
+.detail-row {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 15px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+    align-items: start;
+}
+
+.detail-row label {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.detail-row span {
+    color: var(--text-dark);
+    word-break: break-word;
+}
+
+.document-preview-generic {
+    border: 1px solid var(--border-color);
+    padding: 20px;
+    border-radius: var(--radius-md);
+    background-color: #f9f9f9;
+}
+
+.document-preview-generic h3 {
+    margin-top: 0;
+    color: var(--text-dark);
+}
+
+.document-preview-generic p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
 @keyframes slideUp {
     from {
         opacity: 0;
