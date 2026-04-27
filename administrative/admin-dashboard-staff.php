@@ -102,7 +102,7 @@ if ($result) {
 
 // Recent documents
 $recent_documents = [];
-$result = $conn->query("SELECT id, document_name, status, created_at FROM documents WHERE office_department = '$escaped_dept' ORDER BY created_at DESC LIMIT 10");
+$result = $conn->query("SELECT id, title, status, created_at FROM documents WHERE office_department = '$escaped_dept' ORDER BY created_at DESC LIMIT 10");
 if ($result) {
     while ($row = $result->fetch_assoc()) {
         $recent_documents[] = $row;
