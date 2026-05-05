@@ -37,6 +37,47 @@ $user_id = $_SESSION['user_id'];
 
 require_once '../config/db_connect.php';
 
+function parseCompletionFilePayload($payload)
+{
+    if (empty($payload)) {
+        return [
+            'completion_file_name' => null,
+            'completion_file_type' => null,
+            'completion_file_path' => null,
+            'has_completion_file' => false,
+        ];
+    }
+
+    $decoded = json_decode($payload, true);
+    if (is_array($decoded)) {
+        // New format: store path reference
+        if (isset($decoded['path'])) {
+            return [
+                'completion_file_name' => $decoded['name'] ?? 'completion-file',
+                'completion_file_type' => $decoded['type'] ?? null,
+                'completion_file_path' => $decoded['path'] ?? null,
+                'has_completion_file' => !empty($decoded['path']),
+            ];
+        }
+        // Legacy format: base64 encoded data (for backwards compatibility)
+        if (isset($decoded['data'])) {
+            return [
+                'completion_file_name' => $decoded['name'] ?? 'completion-file',
+                'completion_file_type' => $decoded['type'] ?? null,
+                'completion_file_path' => null,
+                'has_completion_file' => !empty($decoded['data']),
+            ];
+        }
+    }
+
+    return [
+        'completion_file_name' => $payload,
+        'completion_file_type' => null,
+        'completion_file_path' => null,
+        'has_completion_file' => true,
+    ];
+}
+
 // Fetch assignment details - verify user is the recipient (assigned_to)
 $sql = "SELECT 
         da.id,
@@ -48,6 +89,7 @@ $sql = "SELECT
         da.status as assignment_status,
         da.assigned_at,
         da.completed_at,
+        da.completion_file,
         d.id as doc_id,
         d.title,
         d.description,
@@ -80,6 +122,10 @@ $result = $stmt->get_result();
 
 if ($result->num_rows > 0) {
     $assignment = $result->fetch_assoc();
+    // Parse completion file to get has_completion_file and completion_file_name
+    $completion_info = parseCompletionFilePayload($assignment['completion_file'] ?? '');
+    $assignment = array_merge($assignment, $completion_info);
+    unset($assignment['completion_file']);
     echo json_encode(['success' => true, 'assignment' => $assignment]);
 } else {
     http_response_code(404);

@@ -77,6 +77,59 @@ if ($stmt) {
     }
     $stmt->close();
 }
+
+// DEBUG: Check all documents assigned to this user
+$debug_sql = "SELECT da.id, da.assigned_to, da.status, d.title FROM document_assignments da JOIN documents d ON da.document_id = d.id WHERE da.assigned_to = ? ORDER BY da.assigned_at DESC";
+$debug_stmt = $conn->prepare($debug_sql);
+$debug_results = [];
+if ($debug_stmt) {
+    $debug_stmt->bind_param("i", $user_id);
+    $debug_stmt->execute();
+    $debug_result = $debug_stmt->get_result();
+    while ($row = $debug_result->fetch_assoc()) {
+        $debug_results[] = $row;
+    }
+    $debug_stmt->close();
+}
+
+// Fetch finished/completed document assignments
+$finished_documents = [];
+$sql = "SELECT 
+        da.id as assignment_id,
+        d.id as document_id,
+        d.title,
+        (SELECT d_orig.description FROM documents d_orig WHERE d_orig.tracking_number = d.tracking_number ORDER BY d_orig.date_sent ASC, d_orig.id ASC LIMIT 1) as description,
+        d.tracking_number,
+        d.document_type,
+        d.date_sent,
+        d.notes as doc_notes,
+        u_sender.first_name as sender_first_name,
+        u_sender.last_name as sender_last_name,
+        da.office_department,
+        (SELECT da_orig.notes FROM document_assignments da_orig JOIN documents d_orig ON da_orig.document_id = d_orig.id WHERE d_orig.tracking_number = d.tracking_number AND da_orig.assigned_by != da_orig.assigned_to ORDER BY da_orig.assigned_at ASC, da_orig.id ASC LIMIT 1) as assignment_notes,
+        da.status as assignment_status,
+        da.assigned_at,
+        da.completed_at,
+        da.completion_file
+    FROM document_assignments da
+    JOIN documents d ON da.document_id = d.id
+    LEFT JOIN users u_sender ON d.sender_id = u_sender.id
+    WHERE (d.created_by = ? OR da.assigned_to = ?)
+    AND da.status = 'Completed'
+    ORDER BY da.completed_at DESC, da.assigned_at DESC";
+
+$stmt = $conn->prepare($sql);
+if ($stmt) {
+    $stmt->bind_param("ii", $user_id, $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $finished_documents[] = $row;
+    }
+    $stmt->close();
+}
+
+$conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -85,6 +138,7 @@ if ($stmt) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Finished - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -181,6 +235,12 @@ if ($stmt) {
 
         <!-- Main Content Area -->
         <main class="main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 15px 30px; border-bottom: 1px solid #eee; display: flex; justify-content: flex-end; align-items: center; background: white; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="page active">
                 <div class="page-header">
                     <div class="header-with-button">
@@ -192,65 +252,14 @@ if ($stmt) {
                 </div>
 
                 <div class="table-container">
+                    <!-- DEBUG OUTPUT -->
                     <?php
-                    // DEBUG: Show all documents assigned to this user
-                    echo "<!-- DEBUG: user_id = " . htmlspecialchars($user_id) . " -->";
-                    
-                    // Fetch finished/completed document assignments for regular user (assigned_to)
-                    // Shows documents that are Received or Completed
-                    $finished_documents = [];
-                    $sql = "SELECT 
-                            da.id as assignment_id,
-                            d.id as document_id,
-                            d.title,
-                            d.description,
-                            d.tracking_number,
-                            d.document_type,
-                            d.date_sent,
-                            d.notes as doc_notes,
-                            u_sender.first_name as sender_first_name,
-                            u_sender.last_name as sender_last_name,
-                            da.office_department,
-                            da.notes as assignment_notes,
-                            da.status as assignment_status,
-                            da.assigned_at,
-                            da.completed_at
-                        FROM document_assignments da
-                        JOIN documents d ON da.document_id = d.id
-                        LEFT JOIN users u_sender ON d.sender_id = u_sender.id
-                        WHERE da.assigned_to = ?
-                        AND da.status IN ('Received', 'Completed')
-                        ORDER BY da.completed_at DESC, da.assigned_at DESC";
-
-                    $stmt = $conn->prepare($sql);
-                    if ($stmt) {
-                        $stmt->bind_param("i", $user_id);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                        echo "<!-- DEBUG: Finished documents found: " . $result->num_rows . " -->";
-                        while ($row = $result->fetch_assoc()) {
-                            $finished_documents[] = $row;
-                        }
-                        $stmt->close();
-                    } else {
-                        echo "<!-- Database Error: " . htmlspecialchars($conn->error) . " -->";
+                    echo "<!-- DEBUG: User ID = " . htmlspecialchars($user_id) . " -->";
+                    echo "<!-- DEBUG: Total assignments for this user = " . count($debug_results) . " -->";
+                    foreach ($debug_results as $d) {
+                        echo "<!-- DEBUG: Assignment " . $d['id'] . ": " . htmlspecialchars($d['title']) . " - Status: " . htmlspecialchars($d['status']) . " -->";
                     }
-                    
-                    // DEBUG: Show ALL documents assigned to this user (any status)
-                    $sql_all = "SELECT da.id, da.assigned_to, da.status, d.title FROM document_assignments da JOIN documents d ON da.document_id = d.id WHERE da.assigned_to = ?";
-                    $stmt_all = $conn->prepare($sql_all);
-                    if ($stmt_all) {
-                        $stmt_all->bind_param("i", $user_id);
-                        $stmt_all->execute();
-                        $result_all = $stmt_all->get_result();
-                        echo "<!-- DEBUG: ALL documents assigned to user (any status): " . $result_all->num_rows . " -->";
-                        while ($row = $result_all->fetch_assoc()) {
-                            echo "<!-- DEBUG: Assignment " . $row['id'] . ": " . $row['title'] . " - Status: " . $row['status'] . " -->";
-                        }
-                        $stmt_all->close();
-                    }
-                    
-                    $conn->close();
+                    echo "<!-- DEBUG: Finished documents count = " . count($finished_documents) . " -->";
                     ?>
 
                     <table class="data-table">
@@ -278,12 +287,12 @@ if ($stmt) {
                                         <td><?php echo htmlspecialchars($doc['tracking_number'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($doc['title'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars(trim(($doc['sender_first_name'] ?? '') . ' ' . ($doc['sender_last_name'] ?? '')) ?: '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($doc['document_type'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($doc['date_sent'] ? date('Y-m-d', strtotime($doc['date_sent'])) : '-'); ?></td>
+                                        <td><span class="badge badge-info"><?php echo htmlspecialchars($doc['document_type'] ?? '-'); ?></span></td>
+                                        <td><?php echo htmlspecialchars($doc['date_sent'] ? date('M d, Y g:i A', strtotime($doc['date_sent'])) : '-'); ?></td>
                                         <td><?php echo htmlspecialchars($doc['description'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($doc['assignment_notes'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($doc['assignment_status'] ?? '-'); ?></td>
-                                        <td><a href="trackdocument.php?id=<?php echo intval($doc['document_id']); ?>" class="btn btn-sm btn-primary">View</a></td>
+                                        <td><?php echo formatNotes($doc['assignment_notes']); ?></td>
+                                        <td><span class="badge badge-success"><?php echo htmlspecialchars($doc['assignment_status'] ?? '-'); ?></span></td>
+                                        <td><button class="btn btn-sm btn-primary" onclick="viewFinishedDocument(<?php echo $doc['assignment_id']; ?>)" style="color: #0066cc; text-decoration: none;"><i class="fas fa-eye"></i> View</button></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php endif; ?>
@@ -294,6 +303,160 @@ if ($stmt) {
         </main>
     </div>
 
+    <!-- View Document Modal -->
+    <div id="viewFinishedModal" class="modal" style="background-color: rgba(0, 0, 0, 0.5);" onclick="if(event.target === this) closeFinishedModal()">
+        <div class="modal-content" style="max-width: 900px; width: 90%;">
+            <div class="modal-header">
+                <h3>Document Details</h3>
+                <button class="modal-close" onclick="closeFinishedModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;">
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Tracking Code</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
+                            <span id="viewTrackingCode">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Document Type</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
+                            <span id="viewDocumentType">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Title</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px; white-space: normal;">
+                            <span id="viewTitle">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-size: 11px;">From Sender</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
+                            <span id="viewSender">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Date Sent</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
+                            <span id="viewDateSent">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Completed At</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
+                            <span id="viewCompletedAt">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-size: 11px;">Status</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
+                            <span id="viewStatus">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>Description</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        <span id="viewDescription">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notes / Instructions</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        <span id="viewNotes">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Uploaded File</label>
+                    <div id="viewDocumentPreview" style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 200px; overflow-x: hidden; overflow-y: auto;"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeFinishedModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
+    <script>
+        function viewFinishedDocument(assignmentId) {
+            // Fetch document details from server
+            fetch('get-document-details.php?assignment_id=' + assignmentId)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP error, status = ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Document data:', data);
+                    if (data.success && data.document) {
+                        const doc = data.document;
+                        
+                        // Populate modal with data
+                        document.getElementById('viewTrackingCode').textContent = doc.tracking_number || '-';
+                        document.getElementById('viewDocumentType').textContent = doc.document_type || '-';
+                        document.getElementById('viewTitle').textContent = doc.title || '-';
+                        document.getElementById('viewSender').textContent = (doc.sender_first_name || '') + ' ' + (doc.sender_last_name || '') || '-';
+                        document.getElementById('viewDescription').textContent = doc.description || '-';
+                        document.getElementById('viewDateSent').textContent = doc.date_sent ? new Date(doc.date_sent).toLocaleString() : '-';
+                        document.getElementById('viewCompletedAt').textContent = doc.completed_at ? new Date(doc.completed_at).toLocaleString() : '-';
+                        document.getElementById('viewStatus').textContent = doc.assignment_status || doc.document_status || '-';
+                        document.getElementById('viewNotes').textContent = doc.assignment_notes || '-';
+
+                        // Display completion paper from the database-backed endpoint
+                        if (doc.has_completion_file) {
+                            const fileUrl = 'get-document-file.php?assignment_id=' + assignmentId;
+                            const fileName = doc.completion_file_name || 'Uploaded paper';
+                            const extension = fileName.split('.').pop().toLowerCase();
+                            const imageTypes = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+                            if (imageTypes.includes(extension)) {
+                                document.getElementById('viewDocumentPreview').innerHTML = `
+                                    <img src="${fileUrl}" alt="Uploaded file" style="width: 100%; height: auto; max-height: 420px; object-fit: contain; display: block; margin: 0 auto; border-radius: var(--radius-md);" />
+                                    <p style="margin: 10px 0 0; font-size: 12px; color: var(--text-light);">${fileName}</p>
+                                `;
+                            } else {
+                                document.getElementById('viewDocumentPreview').innerHTML = `
+                                    <div style="width: 100%; overflow-x: hidden; overflow-y: auto;">
+                                        <iframe src="${fileUrl}" style="width: 100%; min-height: 420px; height: 420px; border: 0; border-radius: var(--radius-md); background: #fff;"></iframe>
+                                    </div>
+                                    <p style="margin: 10px 0 0; font-size: 12px; color: var(--text-light);">${fileName}</p>
+                                `;
+                            }
+                        } else {
+                            document.getElementById('viewDocumentPreview').innerHTML = '<p style="margin:0; color: var(--text-light);">No file attached.</p>';
+                        }
+                        
+                        // Open modal
+                        document.getElementById('viewFinishedModal').classList.add('active');
+                    } else {
+                        console.error('Error response:', data);
+                        alert('Error: ' + (data.message || 'Unable to load document details'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    alert('Error loading document details: ' + error.message);
+                });
+        }
+
+        function closeFinishedModal() {
+            document.getElementById('viewFinishedModal').classList.remove('active');
+        }
+    </script>
+    <script src="js/notifications.js"></script>
 </body>
-</html>

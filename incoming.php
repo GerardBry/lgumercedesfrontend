@@ -31,6 +31,37 @@ $first_name = $_SESSION['first_name'] ?? 'User';
 $last_name = $_SESSION['last_name'] ?? '';
 $role = $_SESSION['role'] ?? 'User';
 
+// Helper function to parse and format JSON notes
+function formatNotes($notesJson) {
+    if (empty($notesJson)) {
+        return '-';
+    }
+    
+    // Try to decode JSON
+    $decoded = json_decode($notesJson, true);
+    if (is_array($decoded)) {
+        // Extract key info from JSON
+        $parts = [];
+        if (!empty($decoded['title'])) {
+            $parts[] = 'Title: ' . htmlspecialchars($decoded['title']);
+        }
+        if (!empty($decoded['purpose'])) {
+            $parts[] = 'Purpose: ' . htmlspecialchars($decoded['purpose']);
+        }
+        if (!empty($decoded['subject'])) {
+            $parts[] = 'Subject: ' . htmlspecialchars($decoded['subject']);
+        }
+        if (!empty($decoded['type'])) {
+            $parts[] = 'Type: ' . htmlspecialchars($decoded['type']);
+        }
+        
+        return !empty($parts) ? implode(' | ', $parts) : htmlspecialchars($notesJson);
+    }
+    
+    // If not JSON, return as-is
+    return htmlspecialchars($notesJson);
+}
+
 // Fetch full user details from database
 require_once 'config/db_connect.php';
 
@@ -53,31 +84,29 @@ $sql = "SELECT
         da.id as assignment_id,
         d.id as document_id,
         d.title,
-        d.description,
+        (SELECT d_orig.description FROM documents d_orig WHERE d_orig.tracking_number = d.tracking_number ORDER BY d_orig.date_sent ASC, d_orig.id ASC LIMIT 1) as description,
         d.tracking_number,
         d.document_type,
         d.date_sent,
-        d.notes,
+        d.notes as doc_notes,
         u_sender.first_name as sender_first_name,
         u_sender.last_name as sender_last_name,
-        u.first_name as assigned_by_first,
-        u.last_name as assigned_by_last,
         da.office_department,
-        da.notes as assignment_notes,
-        da.status,
+        (SELECT da_orig.notes FROM document_assignments da_orig JOIN documents d_orig ON da_orig.document_id = d_orig.id WHERE d_orig.tracking_number = d.tracking_number AND da_orig.assigned_by != da_orig.assigned_to ORDER BY da_orig.assigned_at ASC, da_orig.id ASC LIMIT 1) as assignment_notes,
+        da.status as assignment_status,
         da.assigned_at,
-        da.received_at
+        da.received_at,
+        da.completed_at
     FROM document_assignments da
     JOIN documents d ON da.document_id = d.id
-    JOIN users u ON da.assigned_by = u.id
     LEFT JOIN users u_sender ON d.sender_id = u_sender.id
-    WHERE da.assigned_to = ? 
+    WHERE (d.created_by = ? OR da.assigned_to = ?)
     AND da.status = 'Pending'
     ORDER BY da.assigned_at DESC";
 
 $stmt = $conn->prepare($sql);
 if ($stmt) {
-    $stmt->bind_param("i", $user_id);
+    $stmt->bind_param("ii", $user_id, $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
@@ -95,6 +124,7 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Incoming - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .btn-sm {
@@ -153,32 +183,42 @@ $conn->close();
                     <li class="divider"></li>
                     <li>
                         <a href="incoming.php" class="nav-item active" data-page="incoming">
-                            <i class="fas fa-inbox"></i>
-                            <span>Incoming</span>
+                            <div>
+                                <i class="fas fa-inbox"></i>
+                                <span>Incoming</span>
+                            </div>
                         </a>
                     </li>
                     <li>
                         <a href="outgoing.php" class="nav-item" data-page="outgoing">
-                            <i class="fas fa-paper-plane"></i>
-                            <span>Outgoing</span>
+                            <div>
+                                <i class="fas fa-paper-plane"></i>
+                                <span>Outgoing</span>
+                            </div>
                         </a>
                     </li>
                     <li>
                         <a href="received.php" class="nav-item" data-page="received">
-                            <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
+                            <div>
+                                <i class="fas fa-envelope-open"></i>
+                                <span>Received</span>
+                            </div>
                         </a>
                     </li>
                     <li>
                         <a href="returned.php" class="nav-item" data-page="returned">
-                            <i class="fas fa-undo"></i>
-                            <span>Returned</span>
+                            <div>
+                                <i class="fas fa-undo"></i>
+                                <span>Returned</span>
+                            </div>
                         </a>
                     </li>
                     <li>
                         <a href="finished.php" class="nav-item" data-page="finished">
-                            <i class="fas fa-check-circle"></i>
-                            <span>Finished</span>
+                            <div>
+                                <i class="fas fa-check-circle"></i>
+                                <span>Finished</span>
+                            </div>
                         </a>
                     </li>
                     <li>
@@ -213,6 +253,12 @@ $conn->close();
 
         <!-- Main Content Area -->
         <main class="main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 15px 30px; border-bottom: 1px solid #eee; display: flex; justify-content: flex-end; align-items: center; background: white; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="page active">
                 <div class="page-header">
                     <div class="header-with-button">
@@ -252,10 +298,10 @@ $conn->close();
                                         </td>
                                         <td><?php echo date('M d, Y h:i A', strtotime($doc['date_sent'] ?? $doc['assigned_at'])); ?></td>
                                         <td><?php echo substr(htmlspecialchars($doc['description'] ?? ''), 0, 50) . (strlen($doc['description'] ?? '') > 50 ? '...' : ''); ?></td>
-                                        <td><?php echo substr(htmlspecialchars($doc['notes'] ?? ''), 0, 40) . (strlen($doc['notes'] ?? '') > 40 ? '...' : ''); ?></td>
+                                        <td><?php echo substr(htmlspecialchars($doc['assignment_notes'] ?? ''), 0, 40) . (strlen($doc['assignment_notes'] ?? '') > 40 ? '...' : ''); ?></td>
                                         <td>
                                             <?php 
-                                                $status = $doc['status'];
+                                                $status = $doc['assignment_status'];
                                                 $badge_class = 'badge-info';
                                                 if ($status === 'Received') $badge_class = 'badge-success';
                                                 elseif ($status === 'Pending') $badge_class = 'badge-warning';
@@ -282,7 +328,7 @@ $conn->close();
     </div>
 
     <!-- View Incoming Document Modal -->
-    <div id="viewIncomingModal" class="modal">
+    <div id="viewIncomingModal" class="modal" style="background-color: rgba(0, 0, 0, 0.5);" onclick="if(event.target === this) closeIncomingModal()">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Document Details</h3>
@@ -292,80 +338,74 @@ $conn->close();
             </div>
 
             <div class="modal-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Tracking Code</label>
-                        <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; font-weight: 500;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Tracking Code</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewTrackingCode">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Document Type</label>
-                        <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Document Type</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewDocumentType">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Document Title</label>
-                    <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; font-weight: 500;">
-                        <span id="viewTitle">-</span>
+                    <div class="form-group" style="min-width: 200px;">
+                        <label style="font-size: 11px;">Title</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <span id="viewTitle">-</span>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Description</label>
-                    <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; min-height: 80px;">
-                        <span id="viewDescription">-</span>
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>From Sender</label>
-                        <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">From Sender</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewSender">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Date Sent</label>
-                        <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Date Sent</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewDateSent">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Assigned By (Admin)</label>
-                        <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Assigned By</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewAssignedBy">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Assigned At</label>
-                        <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Assigned At</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewAssignedAt">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Status</label>
-                        <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; font-weight: 500;">
+                    <div class="form-group" style="min-width: 120px;">
+                        <label style="font-size: 11px;">Status</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewStatus">-</span>
                         </div>
                     </div>
                 </div>
 
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>Description</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        <span id="viewDescription">-</span>
+                    </div>
+                </div>
+
                 <div class="form-group">
-                    <label>Notes / Instructions from Admin</label>
-                    <div style="padding: 10px; background-color: #f5f5f5; border-radius: 6px; min-height: 60px;">
+                    <label>Notes / Instructions</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
                         <span id="viewNotes">-</span>
                     </div>
                 </div>
@@ -596,6 +636,9 @@ $conn->close();
         function closeIncomingModal() {
             document.getElementById('viewIncomingModal').classList.remove('active');
         }
+
+
     </script>
+    <script src="js/notifications.js"></script>
 </body>
 </html>

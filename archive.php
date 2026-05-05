@@ -31,6 +31,37 @@ $first_name = $_SESSION['first_name'] ?? 'User';
 $last_name = $_SESSION['last_name'] ?? '';
 $role = $_SESSION['role'] ?? 'User';
 
+// Helper function to parse and format JSON notes
+function formatNotes($notesJson) {
+    if (empty($notesJson)) {
+        return '-';
+    }
+    
+    // Try to decode JSON
+    $decoded = json_decode($notesJson, true);
+    if (is_array($decoded)) {
+        // Extract key info from JSON
+        $parts = [];
+        if (!empty($decoded['title'])) {
+            $parts[] = 'Title: ' . htmlspecialchars($decoded['title']);
+        }
+        if (!empty($decoded['purpose'])) {
+            $parts[] = 'Purpose: ' . htmlspecialchars($decoded['purpose']);
+        }
+        if (!empty($decoded['subject'])) {
+            $parts[] = 'Subject: ' . htmlspecialchars($decoded['subject']);
+        }
+        if (!empty($decoded['type'])) {
+            $parts[] = 'Type: ' . htmlspecialchars($decoded['type']);
+        }
+        
+        return !empty($parts) ? implode(' | ', $parts) : htmlspecialchars($notesJson);
+    }
+    
+    // If not JSON, return as-is
+    return htmlspecialchars($notesJson);
+}
+
 // Fetch full user details from database
 require_once 'config/db_connect.php';
 
@@ -47,6 +78,42 @@ if ($stmt) {
     $stmt->close();
 }
 
+// Fetch archived documents
+$archived_documents = [];
+$sql = "SELECT 
+        da.id as assignment_id,
+        d.id as document_id,
+        d.title,
+        (SELECT d_orig.description FROM documents d_orig WHERE d_orig.tracking_number = d.tracking_number ORDER BY d_orig.date_sent ASC, d_orig.id ASC LIMIT 1) as description,
+        d.tracking_number,
+        d.document_type,
+        d.date_sent,
+        d.notes as doc_notes,
+        u_sender.first_name as sender_first_name,
+        u_sender.last_name as sender_last_name,
+        da.office_department,
+        (SELECT da_orig.notes FROM document_assignments da_orig JOIN documents d_orig ON da_orig.document_id = d_orig.id WHERE d_orig.tracking_number = d.tracking_number AND da_orig.assigned_by != da_orig.assigned_to ORDER BY da_orig.assigned_at ASC, da_orig.id ASC LIMIT 1) as assignment_notes,
+        da.status as assignment_status,
+        da.assigned_at,
+        da.archived_at
+    FROM document_assignments da
+    JOIN documents d ON da.document_id = d.id
+    LEFT JOIN users u_sender ON d.sender_id = u_sender.id
+    WHERE (d.created_by = ? OR da.assigned_to = ?)
+    AND da.status = 'Archived'
+    ORDER BY da.archived_at DESC, da.assigned_at DESC";
+
+$stmt = $conn->prepare($sql);
+if ($stmt) {
+    $stmt->bind_param("ii", $user_id, $user_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $archived_documents[] = $row;
+    }
+    $stmt->close();
+}
+
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -56,6 +123,7 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Archive - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -152,6 +220,12 @@ $conn->close();
 
         <!-- Main Content Area -->
         <main class="main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 15px 30px; border-bottom: 1px solid #eee; display: flex; justify-content: flex-end; align-items: center; background: white; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="page active">
                 <div class="page-header">
                     <div class="header-with-button">
@@ -185,9 +259,35 @@ $conn->close();
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td colspan="7" style="text-align: center; padding: 40px; color: #999;">No archived documents</td>
-                            </tr>
+                            <?php if (count($archived_documents) > 0): ?>
+                                <?php foreach ($archived_documents as $doc): ?>
+                                    <tr>
+                                        <td>
+                                            <strong><?php echo htmlspecialchars($doc['tracking_number'] ?? 'N/A'); ?></strong>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($doc['title']); ?></td>
+                                        <td><?php echo htmlspecialchars(($doc['sender_first_name'] ?? '') . ' ' . ($doc['sender_last_name'] ?? '')); ?></td>
+                                        <td>
+                                            <span class="badge badge-info"><?php echo htmlspecialchars($doc['document_type'] ?? 'General'); ?></span>
+                                        </td>
+                                        <td><?php echo $doc['date_sent'] ? date('M d, Y h:i A', strtotime($doc['date_sent'])) : '-'; ?></td>
+                                        <td><?php echo htmlspecialchars($doc['description'] ?? '-'); ?></td>
+                                        <td><?php echo substr(htmlspecialchars($doc['assignment_notes'] ?? ''), 0, 40) . (strlen($doc['assignment_notes'] ?? '') > 40 ? '...' : ''); ?></td>
+                                        <td>
+                                            <span class="badge badge-secondary"><?php echo htmlspecialchars($doc['assignment_status']); ?></span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-info" onclick="viewArchivedDocument(<?php echo $doc['assignment_id']; ?>)">
+                                                <i class="fas fa-eye"></i> View
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="9" style="text-align: center; padding: 40px; color: #999;">No archived documents</td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
@@ -195,6 +295,113 @@ $conn->close();
         </main>
     </div>
 
+    <!-- View Archived Document Modal -->
+    <div id="viewArchivedModal" class="modal" style="background-color: rgba(0, 0, 0, 0.5);" onclick="if(event.target === this) closeArchivedModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Document Details</h3>
+                <button class="modal-close" onclick="closeArchivedModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label>Tracking Code</label>
+                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                            <span id="viewTrackingCode">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Document Type</label>
+                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                            <span id="viewDocumentType">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Document Title</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                        <span id="viewTitle">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 80px;">
+                        <span id="viewDescription">-</span>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label>Date Sent</label>
+                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                            <span id="viewDateSent">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Sender</label>
+                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                            <span id="viewSender">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeArchivedModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
+    <script>
+        function viewArchivedDocument(assignmentId) {
+            // Fetch document details via AJAX
+            fetch('get-document-details.php?assignment_id=' + assignmentId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const doc = data.document;
+                        
+                        // Populate modal fields
+                        document.getElementById('viewTrackingCode').textContent = doc.tracking_number || '-';
+                        document.getElementById('viewDocumentType').textContent = doc.document_type || '-';
+                        document.getElementById('viewTitle').textContent = doc.title || '-';
+                        document.getElementById('viewDescription').textContent = doc.description || '-';
+                        document.getElementById('viewDateSent').textContent = doc.date_sent ? new Date(doc.date_sent).toLocaleString() : '-';
+                        document.getElementById('viewSender').textContent = ((doc.sender_first_name || '') + ' ' + (doc.sender_last_name || '')).trim() || '-';
+                        
+                        document.getElementById('viewArchivedModal').classList.add('active');
+                    } else {
+                        alert('Error loading document details');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error loading document details');
+                });
+        }
+
+        function closeArchivedModal() {
+            document.getElementById('viewArchivedModal').classList.remove('active');
+        }
+
+        function htmlEscape(text) {
+            if (!text) return '';
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+    </script>
+    <script src="js/notifications.js"></script>
 </body>
-</html>

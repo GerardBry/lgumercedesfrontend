@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 27, 2026 at 08:14 AM
+-- Generation Time: May 05, 2026 at 05:12 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.0.30
 
@@ -91,7 +91,12 @@ INSERT INTO `audit_trail` (`id`, `user_id`, `action`, `details`, `ip_address`, `
 (51, 1, 'Approve User', 'User ID: 12 approved and activated. New status: Active', '::1', '2026-04-26 18:31:18'),
 (52, 1, 'Admin Logout', 'Super Admin logged out', '::1', '2026-04-26 18:31:32'),
 (53, 8, 'User Logout', 'User logged out', '::1', '2026-04-27 04:31:51'),
-(54, 12, 'User Logout', 'User logged out', '::1', '2026-04-27 04:31:53');
+(54, 12, 'User Logout', 'User logged out', '::1', '2026-04-27 04:31:53'),
+(55, 8, 'User Logout', 'User logged out', '::1', '2026-04-27 06:27:08'),
+(56, 8, 'User Logout', 'User logged out', '::1', '2026-04-27 06:49:03'),
+(57, 8, 'User Logout', 'User logged out', '::1', '2026-05-02 21:34:11'),
+(58, 1, 'Admin Login', 'Super Admin logged in', '::1', '2026-05-03 16:57:45'),
+(59, 12, 'User Logout', 'User logged out', '::1', '2026-05-03 17:27:27');
 
 -- --------------------------------------------------------
 
@@ -111,7 +116,8 @@ CREATE TABLE `documents` (
   `sender_id` int(11) DEFAULT NULL,
   `date_sent` timestamp NOT NULL DEFAULT current_timestamp(),
   `notes` longtext DEFAULT NULL,
-  `status` enum('Pending','Approved','Rejected','Archived') DEFAULT 'Pending'
+  `status` enum('Pending','Approved','Rejected','Archived') DEFAULT 'Pending',
+  `office_department` varchar(150) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -131,7 +137,7 @@ CREATE TABLE `document_assignments` (
   `assigned_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `received_at` timestamp NULL DEFAULT NULL,
   `completed_at` timestamp NULL DEFAULT NULL,
-  `completion_file` longtext DEFAULT NULL,
+  `completion_file` varchar(255) DEFAULT NULL,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -150,25 +156,26 @@ CREATE TABLE `login_attempts` (
   `attempted_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --------------------------------------------------------
+
 --
--- Dumping data for table `login_attempts`
+-- Table structure for table `notifications`
 --
 
-INSERT INTO `login_attempts` (`id`, `email`, `username`, `success`, `ip_address`, `attempted_at`) VALUES
-(1, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-22 15:03:09'),
-(2, 'admin@lgumeceedes.gov.ph', 'admin', 0, '::1', '2026-04-22 15:12:24'),
-(3, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-22 15:28:33'),
-(4, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-22 15:40:59'),
-(5, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-22 15:41:43'),
-(6, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-22 15:42:22'),
-(7, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-22 15:43:51'),
-(8, 'admin.head@lgumerceedes.gov.ph', 'admin.head@lgumerceedes.gov.ph', 0, '::1', '2026-04-22 17:54:28'),
-(9, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-22 19:46:42'),
-(10, 'admin.head@lgumerceedes.gov.ph', 'admin.head@lgumerceedes.gov.ph', 0, '::1', '2026-04-22 20:23:45'),
-(11, 'admin@lgumerc.com', 'admin@lgumerc.com', 0, '::1', '2026-04-26 16:08:28'),
-(12, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-26 16:08:38'),
-(13, 'admin@lgumerc.com', 'admin@lgumerc.com', 0, '::1', '2026-04-26 18:31:05'),
-(14, 'admin@lgumeceedes.gov.ph', 'admin', 1, '::1', '2026-04-26 18:31:10');
+CREATE TABLE `notifications` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `type` varchar(50) NOT NULL,
+  `tracking_number` varchar(50) NOT NULL,
+  `document_id` int(11) NOT NULL,
+  `assignment_id` int(11) NOT NULL,
+  `old_status` varchar(100) DEFAULT NULL,
+  `new_status` varchar(100) DEFAULT NULL,
+  `message` longtext NOT NULL,
+  `is_read` tinyint(1) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `read_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -269,7 +276,8 @@ ALTER TABLE `documents`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_created_by` (`created_by`),
   ADD KEY `idx_created_at` (`created_at`),
-  ADD KEY `idx_tracking_number` (`tracking_number`);
+  ADD KEY `idx_tracking_number` (`tracking_number`),
+  ADD KEY `idx_office_department` (`office_department`);
 
 --
 -- Indexes for table `document_assignments`
@@ -289,6 +297,18 @@ ALTER TABLE `login_attempts`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_email` (`email`),
   ADD KEY `idx_attempted_at` (`attempted_at`);
+
+--
+-- Indexes for table `notifications`
+--
+ALTER TABLE `notifications`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `document_id` (`document_id`),
+  ADD KEY `assignment_id` (`assignment_id`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_is_read` (`is_read`),
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_type` (`type`);
 
 --
 -- Indexes for table `travel_requests`
@@ -327,25 +347,31 @@ ALTER TABLE `user_sessions`
 -- AUTO_INCREMENT for table `audit_trail`
 --
 ALTER TABLE `audit_trail`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=55;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=61;
 
 --
 -- AUTO_INCREMENT for table `documents`
 --
 ALTER TABLE `documents`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=82;
 
 --
 -- AUTO_INCREMENT for table `document_assignments`
 --
 ALTER TABLE `document_assignments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=76;
 
 --
 -- AUTO_INCREMENT for table `login_attempts`
 --
 ALTER TABLE `login_attempts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
+
+--
+-- AUTO_INCREMENT for table `notifications`
+--
+ALTER TABLE `notifications`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=58;
 
 --
 -- AUTO_INCREMENT for table `travel_requests`
@@ -357,7 +383,7 @@ ALTER TABLE `travel_requests`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `user_sessions`
@@ -388,6 +414,14 @@ ALTER TABLE `document_assignments`
   ADD CONSTRAINT `document_assignments_ibfk_1` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `document_assignments_ibfk_2` FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `document_assignments_ibfk_3` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `notifications`
+--
+ALTER TABLE `notifications`
+  ADD CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `notifications_ibfk_2` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `notifications_ibfk_3` FOREIGN KEY (`assignment_id`) REFERENCES `document_assignments` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `users`

@@ -1,2 +1,5 @@
-# Prevent direct access to files
+# Prevent direct access and directory listing
 Options -Indexes
+<FilesMatch "\.">
+    Deny from all
+</FilesMatch>

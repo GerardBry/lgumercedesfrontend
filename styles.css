@@ -270,6 +270,7 @@ p {
     color: #ffffff;
     position: fixed;
     left: 0;
+    right: auto;
     top: 0;
     height: 100vh;
     display: flex;
@@ -403,6 +404,7 @@ p {
 .main-content {
     flex: 1;
     margin-left: 280px;
+    margin-right: 0;
     background-color: var(--bg-light);
     overflow-y: auto;
     min-height: 100vh;
@@ -853,16 +855,6 @@ p {
     font-weight: 600;
 }
 
-.badge-received {
-    background-color: #e3f2fd;
-    color: #1976d2;
-}
-
-.badge-incoming {
-    background-color: #fff3e0;
-    color: #f57c00;
-}
-
 .badge-warning {
     background-color: #fcf8e3;
     color: #8a6d3b;
@@ -877,6 +869,7 @@ p {
 .result-timeline {
     margin-bottom: 24px;
 }
+
 
 .timeline-item {
     display: flex;
@@ -1744,10 +1737,13 @@ textarea {
 @media (max-width: 1024px) {
     .sidebar {
         width: 240px;
+        left: 0;
+        right: auto;
     }
 
     .main-content {
         margin-left: 240px;
+        margin-right: 0;
     }
 
     .page {

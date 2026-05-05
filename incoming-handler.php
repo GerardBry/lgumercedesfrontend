@@ -13,6 +13,7 @@ if (empty($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 require_once 'config/db_connect.php';
+require_once 'config/notification_helpers.php';
 
 // Handle GET requests for viewing assignment details
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'view') {
@@ -66,6 +67,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 
     if ($result->num_rows > 0) {
         $assignment = $result->fetch_assoc();
+
+        if (($assignment['assignment_status'] ?? '') === 'Pending') {
+            markAssignmentNotificationAsRead($conn, $user_id, $assignment_id);
+        }
+
         echo json_encode(['success' => true, 'assignment' => $assignment]);
     } else {
         http_response_code(404);
@@ -89,8 +95,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $assignment_id = intval($data['id']);
 
-    $sql_check = "SELECT da.id, da.document_id, da.status
+    $sql_check = "SELECT da.id, da.document_id, da.status, da.assigned_by,
+                         da.office_department,
+                         d.tracking_number,
+                         staff.first_name as staff_first_name,
+                         staff.last_name as staff_last_name,
+                         staff.office_department as staff_office
                   FROM document_assignments da
+                  JOIN documents d ON d.id = da.document_id
+                  LEFT JOIN users staff ON staff.id = da.assigned_to
                   WHERE da.id = ? AND da.assigned_to = ? LIMIT 1";
     $stmt_check = $conn->prepare($sql_check);
     if (!$stmt_check) {
@@ -143,6 +156,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_update_document->bind_param('i', $row['document_id']);
         $stmt_update_document->execute();
         $stmt_update_document->close();
+
+        // Notify Administrative assignee that the department staff has received the document.
+        $staff_name = trim(($row['staff_first_name'] ?? '') . ' ' . ($row['staff_last_name'] ?? ''));
+        if ($staff_name === '') {
+            $staff_name = 'Assigned staff';
+        }
+        $staff_office = trim($row['staff_office'] ?? $row['office_department'] ?? 'Office');
+        $tracking_number = trim($row['tracking_number'] ?? '');
+        $received_message = "$staff_office - $staff_name with tracking number: $tracking_number has been received";
+
+        createCustomNotification(
+            $conn,
+            intval($row['assigned_by']),
+            intval($row['document_id']),
+            $assignment_id,
+            $tracking_number,
+            $received_message,
+            'status_update',
+            'Pending',
+            'Received'
+        );
 
         $conn->commit();
         echo json_encode(['success' => true, 'message' => 'Document marked as received']);

@@ -40,6 +40,12 @@ if ($action === 'save_draft') {
     exit;
 }
 
+// Handle update_draft action
+if ($action === 'update_draft') {
+    handleUpdateDraft($data);
+    exit;
+}
+
 // Handle reply_from_incoming action (existing)
 if (($data['action'] ?? '') !== 'reply_from_incoming') {
     http_response_code(400);
@@ -150,9 +156,9 @@ try {
     $new_document_id = $conn->insert_id;
     $stmt_insert_doc->close();
 
-    // Mark original instruction as completed after valid response submission.
+    // Move source instruction to in-progress; final completion is handled by Administrative after review.
     $sql_complete_source = "UPDATE document_assignments
-        SET status = 'Completed', completed_at = NOW()
+        SET status = 'Checking Documents', completed_at = NULL
         WHERE id = ? AND assigned_to = ? AND status = 'Received'";
 
     $stmt_complete_source = $conn->prepare($sql_complete_source);
@@ -247,6 +253,93 @@ function handleSaveDraft($data) {
             'success' => true,
             'message' => 'Document saved to Document Entry. You can view and submit it from there.',
             'tracking_code' => $tracking_number,
+            'document_id' => $document_id
+        ]);
+    } catch (Exception $e) {
+        $conn->rollback();
+        http_response_code(400);
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
+    }
+
+    $conn->close();
+    exit;
+}
+
+function handleUpdateDraft($data) {
+    $user_id = intval($_SESSION['user_id']);
+    $document_id = intval($data['document_id'] ?? 0);
+    $title = trim($data['title'] ?? '');
+    $document_type = trim($data['document_type'] ?? 'Travel Request');
+    $description = trim($data['description'] ?? '');
+    $content = $data['content'] ?? array();
+
+    if ($document_id <= 0 || $title === '') {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Document ID and Title are required']);
+        exit;
+    }
+
+    require_once 'config/db_connect.php';
+
+    try {
+        $conn->begin_transaction();
+
+        // Verify that the current user is the creator of this document
+        $verify_sql = "SELECT id, created_by FROM documents WHERE id = ? LIMIT 1";
+        $verify_stmt = $conn->prepare($verify_sql);
+        if (!$verify_stmt) {
+            throw new Exception('Database error: ' . $conn->error);
+        }
+
+        $verify_stmt->bind_param('i', $document_id);
+        $verify_stmt->execute();
+        $verify_result = $verify_stmt->get_result();
+
+        if ($verify_result->num_rows === 0) {
+            $verify_stmt->close();
+            throw new Exception('Document not found');
+        }
+
+        $doc = $verify_result->fetch_assoc();
+        $verify_stmt->close();
+
+        if ($doc['created_by'] != $user_id) {
+            throw new Exception('Access denied: You can only edit your own documents');
+        }
+
+        // Update the document
+        $content_json = json_encode($content, JSON_UNESCAPED_UNICODE);
+        $date_updated = date('Y-m-d H:i:s');
+
+        $update_sql = "UPDATE documents
+            SET title = ?, description = ?, document_type = ?, notes = ?
+            WHERE id = ? AND created_by = ?";
+
+        $update_stmt = $conn->prepare($update_sql);
+        if (!$update_stmt) {
+            throw new Exception('Database error: ' . $conn->error);
+        }
+
+        $update_stmt->bind_param(
+            'ssssii',
+            $title,
+            $description,
+            $document_type,
+            $content_json,
+            $document_id,
+            $user_id
+        );
+        $update_stmt->execute();
+        $update_stmt->close();
+
+        $conn->commit();
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Document updated successfully',
             'document_id' => $document_id
         ]);
     } catch (Exception $e) {

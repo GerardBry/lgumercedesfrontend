@@ -32,7 +32,7 @@ if (!is_array($data)) {
 }
 
 $action = $data['action'] ?? '';
-if ($action !== 'save_draft') {
+if ($action !== 'save_draft' && $action !== 'update_draft') {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Invalid action']);
     exit;
@@ -77,42 +77,107 @@ function generateTrackingNumber($conn) {
 try {
     $conn->begin_transaction();
 
-    $tracking_number = generateTrackingNumber($conn);
-    $date_sent = date('Y-m-d H:i:s');
-    $content_json = json_encode($content, JSON_UNESCAPED_UNICODE);
+    if ($action === 'update_draft') {
+        // Handle update draft
+        $document_id = intval($data['document_id'] ?? 0);
+        
+        if ($document_id <= 0) {
+            throw new Exception('Document ID is required for updates');
+        }
 
-    $sql_insert = "INSERT INTO documents
-        (title, description, tracking_number, document_type, sender_id, notes, created_by, date_sent, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending')";
+        // Verify that the current user is the creator of this document
+        $verify_sql = "SELECT id, created_by FROM documents WHERE id = ? LIMIT 1";
+        $verify_stmt = $conn->prepare($verify_sql);
+        if (!$verify_stmt) {
+            throw new Exception('Database error: ' . $conn->error);
+        }
 
-    $stmt_insert = $conn->prepare($sql_insert);
-    if (!$stmt_insert) {
-        throw new Exception('Database error: ' . $conn->error);
+        $verify_stmt->bind_param('i', $document_id);
+        $verify_stmt->execute();
+        $verify_result = $verify_stmt->get_result();
+
+        if ($verify_result->num_rows === 0) {
+            $verify_stmt->close();
+            throw new Exception('Document not found');
+        }
+
+        $doc = $verify_result->fetch_assoc();
+        $verify_stmt->close();
+
+        if ($doc['created_by'] != $user_id) {
+            throw new Exception('Access denied: You can only edit your own documents');
+        }
+
+        // Update the document
+        $content_json = json_encode($content, JSON_UNESCAPED_UNICODE);
+
+        $update_sql = "UPDATE documents
+            SET title = ?, description = ?, document_type = ?, notes = ?
+            WHERE id = ? AND created_by = ?";
+
+        $update_stmt = $conn->prepare($update_sql);
+        if (!$update_stmt) {
+            throw new Exception('Database error: ' . $conn->error);
+        }
+
+        $update_stmt->bind_param(
+            'ssssii',
+            $title,
+            $description,
+            $document_type,
+            $content_json,
+            $document_id,
+            $user_id
+        );
+        $update_stmt->execute();
+        $update_stmt->close();
+
+        $conn->commit();
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Document updated successfully',
+            'document_id' => $document_id
+        ]);
+    } else {
+        // Handle save draft
+        $tracking_number = generateTrackingNumber($conn);
+        $date_sent = date('Y-m-d H:i:s');
+        $content_json = json_encode($content, JSON_UNESCAPED_UNICODE);
+
+        $sql_insert = "INSERT INTO documents
+            (title, description, tracking_number, document_type, sender_id, notes, created_by, date_sent, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Pending')";
+
+        $stmt_insert = $conn->prepare($sql_insert);
+        if (!$stmt_insert) {
+            throw new Exception('Database error: ' . $conn->error);
+        }
+
+        $stmt_insert->bind_param(
+            'ssssisis',
+            $title,
+            $description,
+            $tracking_number,
+            $document_type,
+            $user_id,
+            $content_json,
+            $user_id,
+            $date_sent
+        );
+        $stmt_insert->execute();
+        $document_id = $conn->insert_id;
+        $stmt_insert->close();
+
+        $conn->commit();
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Document saved to Document Entry.',
+            'tracking_code' => $tracking_number,
+            'document_id' => $document_id
+        ]);
     }
-
-    $stmt_insert->bind_param(
-        'ssssisis',
-        $title,
-        $description,
-        $tracking_number,
-        $document_type,
-        $user_id,
-        $content_json,
-        $user_id,
-        $date_sent
-    );
-    $stmt_insert->execute();
-    $document_id = $conn->insert_id;
-    $stmt_insert->close();
-
-    $conn->commit();
-
-    echo json_encode([
-        'success' => true,
-        'message' => 'Document saved to Document Entry.',
-        'tracking_code' => $tracking_number,
-        'document_id' => $document_id
-    ]);
 } catch (Exception $e) {
     $conn->rollback();
     http_response_code(400);

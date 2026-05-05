@@ -31,6 +31,37 @@ $first_name = $_SESSION['first_name'] ?? 'User';
 $last_name = $_SESSION['last_name'] ?? '';
 $role = $_SESSION['role'] ?? 'User';
 
+// Helper function to parse and format JSON notes
+function formatNotes($notesJson) {
+    if (empty($notesJson)) {
+        return '-';
+    }
+    
+    // Try to decode JSON
+    $decoded = json_decode($notesJson, true);
+    if (is_array($decoded)) {
+        // Extract key info from JSON
+        $parts = [];
+        if (!empty($decoded['title'])) {
+            $parts[] = 'Title: ' . htmlspecialchars($decoded['title']);
+        }
+        if (!empty($decoded['purpose'])) {
+            $parts[] = 'Purpose: ' . htmlspecialchars($decoded['purpose']);
+        }
+        if (!empty($decoded['subject'])) {
+            $parts[] = 'Subject: ' . htmlspecialchars($decoded['subject']);
+        }
+        if (!empty($decoded['type'])) {
+            $parts[] = 'Type: ' . htmlspecialchars($decoded['type']);
+        }
+        
+        return !empty($parts) ? implode(' | ', $parts) : htmlspecialchars($notesJson);
+    }
+    
+    // If not JSON, return as-is
+    return htmlspecialchars($notesJson);
+}
+
 // Fetch full user details from database
 require_once 'config/db_connect.php';
 
@@ -52,11 +83,11 @@ $outgoing_documents = [];
 $sql = "SELECT 
         d.id as document_id,
         d.title,
-        d.description,
+        (SELECT d_orig.description FROM documents d_orig WHERE d_orig.tracking_number = d.tracking_number ORDER BY d_orig.date_sent ASC, d_orig.id ASC LIMIT 1) as description,
         d.tracking_number,
         d.document_type,
         d.date_sent,
-        d.notes as doc_notes,
+        (SELECT da_orig.notes FROM document_assignments da_orig JOIN documents d_orig ON da_orig.document_id = d_orig.id WHERE d_orig.tracking_number = d.tracking_number AND da_orig.assigned_by != da_orig.assigned_to ORDER BY da_orig.assigned_at ASC, da_orig.id ASC LIMIT 1) as doc_notes,
         d.status,
         da.id as assignment_id,
         da.assigned_to,
@@ -93,6 +124,7 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Outgoing Documents - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .btn-sm {
@@ -114,6 +146,15 @@ $conn->close();
 
         .btn-info:hover {
             background-color: #bbdefb;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .data-table {
+            min-width: 1200px;
         }
     </style>
 </head>
@@ -151,32 +192,42 @@ $conn->close();
                     <li class="divider"></li>
                     <li>
                         <a href="incoming.php" class="nav-item" data-page="incoming">
-                            <i class="fas fa-inbox"></i>
-                            <span>Incoming</span>
+                            <div>
+                                <i class="fas fa-inbox"></i>
+                                <span>Incoming</span>
+                            </div>
                         </a>
                     </li>
                     <li>
                         <a href="outgoing.php" class="nav-item active" data-page="outgoing">
-                            <i class="fas fa-paper-plane"></i>
-                            <span>Outgoing</span>
+                            <div>
+                                <i class="fas fa-paper-plane"></i>
+                                <span>Outgoing</span>
+                            </div>
                         </a>
                     </li>
                     <li>
                         <a href="received.php" class="nav-item" data-page="received">
-                            <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
+                            <div>
+                                <i class="fas fa-envelope-open"></i>
+                                <span>Received</span>
+                            </div>
                         </a>
                     </li>
                     <li>
                         <a href="returned.php" class="nav-item" data-page="returned">
-                            <i class="fas fa-undo"></i>
-                            <span>Returned</span>
+                            <div>
+                                <i class="fas fa-undo"></i>
+                                <span>Returned</span>
+                            </div>
                         </a>
                     </li>
                     <li>
                         <a href="finished.php" class="nav-item" data-page="finished">
-                            <i class="fas fa-check-circle"></i>
-                            <span>Finished</span>
+                            <div>
+                                <i class="fas fa-check-circle"></i>
+                                <span>Finished</span>
+                            </div>
                         </a>
                     </li>
                     <li>
@@ -211,6 +262,12 @@ $conn->close();
 
         <!-- Main Content Area -->
         <main class="main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 15px 30px; border-bottom: 1px solid #eee; display: flex; justify-content: flex-end; align-items: center; background: white; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="page active">
                 <div class="page-header">
                     <div class="header-with-button">
@@ -227,8 +284,11 @@ $conn->close();
                             <tr>
                                 <th>Tracking Code</th>
                                 <th>Document Title</th>
+                                <th>Sender</th>
                                 <th>Document Type</th>
                                 <th>Date Sent</th>
+                                <th>Description</th>
+                                <th>Notes/Instructions</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -241,10 +301,13 @@ $conn->close();
                                             <strong><?php echo htmlspecialchars($doc['tracking_number'] ?? 'N/A'); ?></strong>
                                         </td>
                                         <td><?php echo htmlspecialchars($doc['title']); ?></td>
+                                        <td><?php echo htmlspecialchars(($doc['recipient_first_name'] ?? '') . ' ' . ($doc['recipient_last_name'] ?? '')); ?></td>
                                         <td>
                                             <span class="badge badge-info"><?php echo htmlspecialchars($doc['document_type'] ?? 'General'); ?></span>
                                         </td>
                                         <td><?php echo $doc['date_sent'] ? date('M d, Y h:i A', strtotime($doc['date_sent'])) : '-'; ?></td>
+                                        <td><?php echo htmlspecialchars($doc['description'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($doc['doc_notes'] ?? '-'); ?></td>
                                         <td>
                                             <?php 
                                                 $status = !empty($doc['assignment_status']) ? $doc['assignment_status'] : ($doc['status'] ?? 'Pending');
@@ -264,7 +327,7 @@ $conn->close();
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="6" class="empty-state">No outgoing documents</td>
+                                    <td colspan="9" class="empty-state">No outgoing documents</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -275,7 +338,7 @@ $conn->close();
     </div>
 
     <!-- View Outgoing Document Modal -->
-    <div id="viewOutgoingModal" class="modal">
+    <div id="viewOutgoingModal" class="modal" style="background-color: rgba(0, 0, 0, 0.5);" onclick="if(event.target === this) closeOutgoingModal()">
         <div class="modal-content modal-large">
             <div class="modal-header">
                 <h3>Document Details</h3>
@@ -285,62 +348,58 @@ $conn->close();
             </div>
 
             <div class="modal-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-height: 600px; overflow-y: auto;">
-                    <div>
-                        <div class="form-group">
-                            <label>Tracking Code</label>
-                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                <span id="viewTrackingCode">-</span>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Document Type</label>
-                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                <span id="viewDocumentType">-</span>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Document Title</label>
-                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                <span id="viewTitle">-</span>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Description</label>
-                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
-                                <span id="viewDescription">-</span>
-                            </div>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                            <div class="form-group">
-                                <label>Date Sent</label>
-                                <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                    <span id="viewDateSent">-</span>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Status</label>
-                                <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                    <span id="viewStatus">-</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Form Details</label>
-                            <div id="viewFormDetails" style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 120px;"></div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; max-height: 120px; overflow-x: auto;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Tracking Code</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
+                            <span id="viewTrackingCode">-</span>
                         </div>
                     </div>
 
-                    <div style="border-left: 1px solid #ddd; padding-left: 20px;">
-                        <h4 style="margin: 0 0 10px 0; color: var(--text-dark);">Digitalized Paper Format</h4>
-                        <div id="viewDigitalPaperPreview"></div>
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Document Type</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
+                            <span id="viewDocumentType">-</span>
+                        </div>
                     </div>
+
+                    <div class="form-group" style="min-width: 200px;">
+                        <label style="font-size: 11px;">Title</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <span id="viewTitle">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Date Sent</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
+                            <span id="viewDateSent">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="min-width: 120px;">
+                        <label style="font-size: 11px;">Status</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
+                            <span id="viewStatus">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>Description</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        <span id="viewDescription">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Form Details</label>
+                    <div id="viewFormDetails" style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 80px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Digitalized Paper Format</label>
+                    <div id="viewDigitalPaperPreview" style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 150px;"></div>
                 </div>
             </div>
 
@@ -439,5 +498,6 @@ $conn->close();
             document.getElementById('viewOutgoingModal').classList.remove('active');
         }
     </script>
+    <script src="js/notifications.js"></script>
 </body>
 </html>

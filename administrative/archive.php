@@ -31,6 +31,37 @@ $first_name = $_SESSION['first_name'] ?? 'User';
 $last_name = $_SESSION['last_name'] ?? '';
 $role = $_SESSION['role'] ?? 'User';
 
+// Helper function to parse and format JSON notes
+function formatNotes($notesJson) {
+    if (empty($notesJson)) {
+        return '-';
+    }
+    
+    // Try to decode JSON
+    $decoded = json_decode($notesJson, true);
+    if (is_array($decoded)) {
+        // Extract key info from JSON
+        $parts = [];
+        if (!empty($decoded['title'])) {
+            $parts[] = 'Title: ' . htmlspecialchars($decoded['title']);
+        }
+        if (!empty($decoded['purpose'])) {
+            $parts[] = 'Purpose: ' . htmlspecialchars($decoded['purpose']);
+        }
+        if (!empty($decoded['subject'])) {
+            $parts[] = 'Subject: ' . htmlspecialchars($decoded['subject']);
+        }
+        if (!empty($decoded['type'])) {
+            $parts[] = 'Type: ' . htmlspecialchars($decoded['type']);
+        }
+        
+        return !empty($parts) ? implode(' | ', $parts) : htmlspecialchars($notesJson);
+    }
+    
+    // If not JSON, return as-is
+    return htmlspecialchars($notesJson);
+}
+
 // Fetch full user details from database
 require_once '../config/db_connect.php';
 
@@ -53,7 +84,7 @@ $sql = "SELECT
         da.id as assignment_id,
         d.id as document_id,
         d.title,
-        d.description,
+        (SELECT d_orig.description FROM documents d_orig WHERE d_orig.tracking_number = d.tracking_number ORDER BY d_orig.date_sent ASC, d_orig.id ASC LIMIT 1) as description,
         d.tracking_number,
         d.document_type,
         d.date_sent,
@@ -61,7 +92,7 @@ $sql = "SELECT
         u_sender.first_name as sender_first_name,
         u_sender.last_name as sender_last_name,
         da.office_department,
-        da.notes as assignment_notes,
+        (SELECT da_orig.notes FROM document_assignments da_orig JOIN documents d_orig ON da_orig.document_id = d_orig.id WHERE d_orig.tracking_number = d.tracking_number AND da_orig.assigned_by != da_orig.assigned_to ORDER BY da_orig.assigned_at ASC, da_orig.id ASC LIMIT 1) as assignment_notes,
         da.status as assignment_status,
         da.assigned_at,
         da.archived_at
@@ -92,6 +123,7 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Archive Documents - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="../css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .admin-container {
@@ -640,13 +672,6 @@ $conn->close();
                             <span>Archive</span>
                         </a>
                     </li>
-                    <li class="divider"></li>
-                    <li>
-                        <a href="#" class="admin-nav-item" style="opacity: 0.5; cursor: not-allowed;">
-                            <i class="fas fa-users"></i>
-                            <span>Staff (Coming Soon)</span>
-                        </a>
-                    </li>
                 </ul>
             </nav>
 
@@ -668,6 +693,12 @@ $conn->close();
 
         <!-- Main Content -->
         <div class="admin-main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 20px 40px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="admin-page">
                 <div class="page-header">
                     <h2>Archive Documents</h2>
@@ -737,65 +768,61 @@ $conn->close();
             </div>
 
             <div class="modal-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Tracking Code</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; max-height: 120px; overflow-x: auto;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Tracking Code</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewTrackingCode">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Document Type</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Document Type</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewDocumentType">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Document Title</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                        <span id="viewTitle">-</span>
+                    <div class="form-group" style="min-width: 200px;">
+                        <label style="font-size: 11px;">Title</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <span id="viewTitle">-</span>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Description</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 80px;">
-                        <span id="viewDescription">-</span>
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>From Sender</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">From Sender</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewSender">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Date Sent</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Date Sent</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewDateSent">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Archived At</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Archived At</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewArchivedAt">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Status</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 120px;">
+                        <label style="font-size: 11px;">Status</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewStatus">-</span>
                         </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>Description</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        <span id="viewDescription">-</span>
                     </div>
                 </div>
 
@@ -849,5 +876,6 @@ $conn->close();
             document.getElementById('viewArchivedModal').classList.remove('active');
         }
     </script>
+    <script src="../js/notifications.js"></script>
 </body>
 </html>

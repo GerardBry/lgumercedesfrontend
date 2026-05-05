@@ -120,6 +120,9 @@ function resetDocumentForm() {
     document.getElementById('createDocumentForm').reset();
     document.getElementById('modalDocType').value = '';
     hideDynamicForms();
+    // Reset editing flags
+    isEditingDocument = false;
+    currentViewingDocId = null;
 }
 
 // ==========================================
@@ -265,6 +268,8 @@ function handlePreviewDocument(e) {
 
 // Store current document data for submission
 let currentDocumentData = null;
+let currentViewingDocId = null;  // Track which document is being viewed for editing
+let isEditingDocument = false;   // Flag to indicate if we're editing an existing document
 
 function previewDocument() {
     const docType = document.getElementById('modalDocType').value;
@@ -492,13 +497,18 @@ function saveDocumentAsDraft(docData) {
 
     // Prepare payload for saving as draft
     const payload = {
-        action: 'save_draft',
+        action: isEditingDocument ? 'update_draft' : 'save_draft',
         document_type: docType,
         title: title,
         description: description,
         doc_code: docCode,
         content: data
     };
+    
+    // Add document ID if updating
+    if (isEditingDocument && currentViewingDocId) {
+        payload.document_id = currentViewingDocId;
+    }
 
     fetch('documententry-handler.php', {
         method: 'POST',
@@ -515,7 +525,12 @@ function saveDocumentAsDraft(docData) {
         }
 
         closeCreateDocumentModal();
-        showNotification('Document saved to Document Entry. You can view and submit it from there.', 'success');
+        const message = isEditingDocument ? 'Document updated successfully!' : 'Document saved to Document Entry. You can view and submit it from there.';
+        showNotification(message, 'success');
+        
+        // Reset editing flag
+        isEditingDocument = false;
+        currentViewingDocId = null;
 
         setTimeout(() => {
             window.location.href = 'documententry.php';
@@ -784,6 +799,9 @@ function viewSavedDocument(docId) {
 }
 
 function displayDocumentDetailsModal(doc) {
+    // Store the document ID for editing
+    currentViewingDocId = doc.id;
+    
     // Build details HTML
     let detailsHTML = `
         <div class="document-details">
@@ -906,8 +924,126 @@ function closeDocumentDetailsModal() {
 }
 
 function editDocument() {
-    showNotification('Edit functionality coming soon!', 'info');
-    // In the future, this can open an edit form for the document
+    if (!currentViewingDocId) {
+        showNotification('No document selected', 'warning');
+        return;
+    }
+    
+    // Fetch the document again to get the full data
+    fetch('get-document-details.php?id=' + currentViewingDocId, {
+        method: 'GET'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            showNotification('Failed to load document for editing', 'warning');
+            return;
+        }
+        
+        const doc = data.document;
+        
+        // Parse the notes field which contains the form data
+        let formData = {};
+        try {
+            formData = JSON.parse(doc.notes || '{}');
+        } catch (e) {
+            formData = {};
+        }
+        
+        // Close the details modal
+        closeDocumentDetailsModal();
+        
+        // Set editing flag
+        isEditingDocument = true;
+        
+        // Populate the form with the document data
+        document.getElementById('modalDocTitle').value = doc.title || '';
+        document.getElementById('modalDocType').value = doc.document_type || '';
+        
+        // Update the dynamic form based on document type
+        updateDynamicForm();
+        
+        // Populate document type specific fields
+        if (doc.document_type === 'Travel Request') {
+            document.getElementById('toDate').value = formData.dateIssued || '';
+            document.getElementById('travelDestination').value = formData.destination || '';
+            document.getElementById('travelPurpose').value = formData.purpose || '';
+            document.getElementById('travelStartDate').value = formData.startDate || '';
+            document.getElementById('travelEndDate').value = formData.endDate || '';
+            document.getElementById('travelDuration').value = formData.duration || '';
+            document.getElementById('travelMode').value = formData.mode || '';
+            document.getElementById('toFrom').value = formData.from || '';
+            document.getElementById('toSubject').value = formData.subject || '';
+            
+            // Populate travelers
+            const personnelList = document.getElementById('personnelList');
+            personnelList.innerHTML = '';
+            if (formData.travelers && Array.isArray(formData.travelers)) {
+                formData.travelers.forEach(traveler => {
+                    const div = document.createElement('div');
+                    div.className = 'multi-entry-item';
+                    // Handle both string and object formats
+                    if (typeof traveler === 'string') {
+                        const parts = traveler.split(',').map(p => p.trim());
+                        div.innerHTML = `
+                            <input type="text" placeholder="Name of Employee / Personnel" class="traveler-name" value="${parts[0] || ''}" required>
+                            <input type="text" placeholder="Position/Designation" class="traveler-position" value="${parts[1] || ''}" required>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="removePersonnel(this)">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        `;
+                    } else {
+                        div.innerHTML = `
+                            <input type="text" placeholder="Name of Employee / Personnel" class="traveler-name" value="" required>
+                            <input type="text" placeholder="Position/Designation" class="traveler-position" value="" required>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="removePersonnel(this)">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        `;
+                    }
+                    personnelList.appendChild(div);
+                });
+            }
+        } else if (doc.document_type === 'Executive Order') {
+            document.getElementById('eoNumber').value = formData.orderNumber || '';
+            document.getElementById('eoTitle').value = formData.eoTitle || '';
+            document.getElementById('eoLegalBasis').value = formData.legalBasis || '';
+            document.getElementById('eoDescription').value = formData.description || '';
+            document.getElementById('eoDateIssued').value = formData.dateIssued || '';
+            document.getElementById('eoSignatory').value = formData.signatory || '';
+        } else if (doc.document_type === 'Office Order') {
+            document.getElementById('ooNumber').value = formData.orderNumber || '';
+            document.getElementById('ooDate').value = formData.effectivityDate || '';
+            document.getElementById('ooTask').value = formData.task || '';
+            document.getElementById('ooDepartment').value = formData.department || '';
+            document.getElementById('ooRemarks').value = formData.remarks || '';
+            
+            // Populate assigned personnel
+            const assignedList = document.getElementById('assignedPersonnelList');
+            if (assignedList && formData.assignedPersonnel && Array.isArray(formData.assignedPersonnel)) {
+                assignedList.innerHTML = '';
+                formData.assignedPersonnel.forEach(person => {
+                    const div = document.createElement('div');
+                    div.className = 'multi-entry-item';
+                    div.innerHTML = `
+                        <input type="text" placeholder="Assigned Personnel" class="assigned-personnel" value="${person || ''}" required>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="removePersonnel(this)">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                    assignedList.appendChild(div);
+                });
+            }
+        }
+        
+        // Open the create document modal for editing
+        document.getElementById('createDocumentModal').classList.add('active');
+        showNotification('Edit mode - Make your changes and save', 'info');
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Failed to load document for editing', 'warning');
+    });
 }
 
 // ==========================================

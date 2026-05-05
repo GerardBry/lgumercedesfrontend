@@ -30,6 +30,8 @@ $assignment_id = intval($_GET['id']);
 $user_id = $_SESSION['user_id'];
 
 require_once '../config/db_connect.php';
+require_once '../config/notification_helpers.php';
+
 
 $sql = "SELECT
         da.id,
@@ -57,7 +59,7 @@ $sql = "SELECT
     JOIN documents d ON da.document_id = d.id
     LEFT JOIN users sender ON d.sender_id = sender.id
     LEFT JOIN users assigner ON da.assigned_by = assigner.id
-    WHERE da.id = ? AND da.assigned_to = ? LIMIT 1";
+    WHERE da.id = ? AND (da.assigned_to = ? OR da.assigned_by = ?) LIMIT 1";
 
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
@@ -66,7 +68,7 @@ if (!$stmt) {
     exit;
 }
 
-$stmt->bind_param('ii', $assignment_id, $user_id);
+$stmt->bind_param('iii', $assignment_id, $user_id, $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -74,8 +76,10 @@ if ($result->num_rows > 0) {
     $assignment = $result->fetch_assoc();
     echo json_encode(['success' => true, 'assignment' => $assignment]);
 } else {
+    // Debug: Log what went wrong
+    error_log("Assignment View Error - ID: $assignment_id, User: $user_id");
     http_response_code(404);
-    echo json_encode(['success' => false, 'message' => 'Assignment not found or access denied']);
+    echo json_encode(['success' => false, 'message' => 'Assignment not found or access denied', 'debug' => ['assignment_id' => $assignment_id, 'user_id' => $user_id]]);
 }
 
 $stmt->close();
@@ -95,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
     
     require_once '../config/db_connect.php';
+    require_once '../config/notification_helpers.php';
     
     // Check if assignment exists and belongs to this admin
     $sql_check = "SELECT da.id, da.document_id, da.status 
@@ -132,8 +137,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     
     $conn->begin_transaction();
     try {
+        // Get assignment details before updating
+        $sql_get = "SELECT da.assigned_by, da.document_id, d.tracking_number 
+                    FROM document_assignments da 
+                    JOIN documents d ON da.document_id = d.id 
+                    WHERE da.id = ?";
+        $stmt_get = $conn->prepare($sql_get);
+        $stmt_get->bind_param('i', $assignment_id);
+        $stmt_get->execute();
+        $result_get = $stmt_get->get_result();
+        $assignment_data = $result_get->fetch_assoc();
+        $stmt_get->close();
+        
+        $assigned_by = intval($assignment_data['assigned_by']);
+        $document_id = intval($assignment_data['document_id']);
+        $tracking_number = $assignment_data['tracking_number'] ?? '';
+        
         $sql_update_assignment = "UPDATE document_assignments
-                                  SET status = 'Received', received_at = NOW()
+                                  SET status = 'Received', received_at = NOW(), viewed_at = NOW()
                                   WHERE id = ? AND assigned_to = ?";
         $stmt_update_assignment = $conn->prepare($sql_update_assignment);
         $stmt_update_assignment->bind_param('ii', $assignment_id, $user_id);
@@ -144,16 +165,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                                SET status = 'Received'
                                WHERE id = ?";
         $stmt_update_document = $conn->prepare($sql_update_document);
-        $stmt_update_document->bind_param('i', $row['document_id']);
+        $stmt_update_document->bind_param('i', $document_id);
         $stmt_update_document->execute();
         $stmt_update_document->close();
+        
+        // Create notification for Department Staff that Administrative received their document
+        $admin_name = $_SESSION['first_name'] ?? 'Administrative';
+        createCustomNotification(
+            $conn,
+            $assigned_by,
+            $document_id,
+            $assignment_id,
+            $tracking_number,
+            "Administrative - $admin_name has received your document with tracking number: $tracking_number",
+            'status_update',
+            'Pending',
+            'Received'
+        );
         
         $conn->commit();
         echo json_encode(['success' => true, 'message' => 'Document marked as received']);
     } catch (Exception $e) {
         $conn->rollback();
         http_response_code(500);
-        echo json_encode(['success' => false, 'message' => 'Failed to update status']);
+        // Return the actual error message for debugging
+        echo json_encode(['success' => false, 'message' => 'Failed to update status: ' . $e->getMessage()]);
     }
     
     $conn->close();

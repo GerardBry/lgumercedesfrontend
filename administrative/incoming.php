@@ -26,6 +26,37 @@ $first_name = $_SESSION['first_name'] ?? 'User';
 $last_name = $_SESSION['last_name'] ?? '';
 $role = $_SESSION['role'] ?? 'User';
 
+// Helper function to parse and format JSON notes
+function formatNotes($notesJson) {
+    if (empty($notesJson)) {
+        return '-';
+    }
+    
+    // Try to decode JSON
+    $decoded = json_decode($notesJson, true);
+    if (is_array($decoded)) {
+        // Extract key info from JSON
+        $parts = [];
+        if (!empty($decoded['title'])) {
+            $parts[] = 'Title: ' . htmlspecialchars($decoded['title']);
+        }
+        if (!empty($decoded['purpose'])) {
+            $parts[] = 'Purpose: ' . htmlspecialchars($decoded['purpose']);
+        }
+        if (!empty($decoded['subject'])) {
+            $parts[] = 'Subject: ' . htmlspecialchars($decoded['subject']);
+        }
+        if (!empty($decoded['type'])) {
+            $parts[] = 'Type: ' . htmlspecialchars($decoded['type']);
+        }
+        
+        return !empty($parts) ? implode(' | ', $parts) : htmlspecialchars($notesJson);
+    }
+    
+    // If not JSON, return as-is
+    return htmlspecialchars($notesJson);
+}
+
 require_once '../config/db_connect.php';
 
 $user_details = null;
@@ -42,17 +73,17 @@ if ($stmt) {
 }
 
 $incoming_documents = [];
-$sql = "SELECT
+$sql = "SELECT DISTINCT
         da.id as assignment_id,
         d.id as document_id,
         d.tracking_number,
         d.title,
-        d.description,
+        (SELECT d_orig.description FROM documents d_orig WHERE d_orig.tracking_number = d.tracking_number ORDER BY d_orig.date_sent ASC, d_orig.id ASC LIMIT 1) as description,
         d.document_type,
         d.date_sent,
         d.notes as doc_notes,
         da.office_department,
-        da.notes as assignment_notes,
+        (SELECT da_orig.notes FROM document_assignments da_orig JOIN documents d_orig ON da_orig.document_id = d_orig.id WHERE d_orig.tracking_number = d.tracking_number AND da_orig.assigned_by != da_orig.assigned_to ORDER BY da_orig.assigned_at ASC, da_orig.id ASC LIMIT 1) as assignment_notes,
         da.status as assignment_status,
         da.assigned_at,
         da.received_at,
@@ -65,7 +96,7 @@ $sql = "SELECT
     LEFT JOIN users sender ON d.sender_id = sender.id
     LEFT JOIN users assigner ON da.assigned_by = assigner.id
     WHERE da.assigned_to = ?
-      AND da.status IN ('Forwarded')
+            AND da.status IN ('Pending', 'Forwarded')
     ORDER BY da.assigned_at DESC";
 
 $stmt = $conn->prepare($sql);
@@ -88,6 +119,7 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Incoming Documents - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="../css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .admin-container {
@@ -176,6 +208,7 @@ $conn->close();
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
+            position: relative;
         }
 
         .admin-nav-item i {
@@ -192,6 +225,23 @@ $conn->close();
             background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
             color: #ffffff;
             box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+        }
+
+        .badge-notification {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            padding: 0 6px;
+            margin-left: auto;
+            background-color: #dc3545;
+            color: #ffffff;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            flex-shrink: 0;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
         }
 
         .admin-sidebar-footer {
@@ -222,7 +272,9 @@ $conn->close();
             font-weight: 600;
         }
 
-        .admin-user-info { flex: 1; }
+        .admin-user-info {
+            flex: 1;
+        }
 
         .admin-user-name {
             font-size: 13px;
@@ -254,9 +306,6 @@ $conn->close();
             gap: 8px;
             text-decoration: none;
         }
-
-        .logout-btn:hover { background-color: #d0d0d0; }
-
         .admin-main-content {
             flex: 1;
             margin-left: 280px;
@@ -317,19 +366,6 @@ $conn->close();
 
         .data-table tbody tr:hover { background-color: var(--bg-light); }
         .data-table tbody tr:last-child td { border-bottom: none; }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .badge-warning {
-            background-color: #fff3e0;
-            color: #f57c00;
-        }
 
         .btn-sm {
             padding: 6px 12px;
@@ -511,6 +547,7 @@ $conn->close();
                         <a href="incoming.php" class="admin-nav-item active">
                             <i class="fas fa-inbox"></i>
                             <span>Incoming</span>
+                            <span class="badge-notification" id="incomingBadge" style="display: none;">0</span>
                         </a>
                     </li>
                     <li>
@@ -543,13 +580,6 @@ $conn->close();
                             <span>Archive</span>
                         </a>
                     </li>
-                    <li class="divider"></li>
-                    <li>
-                        <a href="#" class="admin-nav-item" style="opacity: 0.5; cursor: not-allowed;">
-                            <i class="fas fa-users"></i>
-                            <span>Staff (Coming Soon)</span>
-                        </a>
-                    </li>
                 </ul>
             </nav>
 
@@ -568,6 +598,12 @@ $conn->close();
         </div>
 
         <div class="admin-main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 20px 40px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="admin-page">
                 <div class="page-header">
                     <h2>Incoming Documents</h2>
@@ -600,7 +636,7 @@ $conn->close();
                                         <td><?php echo $doc['date_sent'] ? date('M d, Y h:i A', strtotime($doc['date_sent'])) : '-'; ?></td>
                                         <td><?php echo htmlspecialchars($doc['description'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($doc['assignment_notes'] ?? '-'); ?></td>
-                                        <td><span class="badge badge-warning"><?php echo htmlspecialchars($doc['assignment_status'] ?? 'Pending'); ?></span></td>
+                                        <td><?php echo htmlspecialchars($doc['assignment_status'] ?? 'Pending'); ?></td>
                                         <td>
                                             <button class="btn-sm btn-info" onclick="viewIncomingDocument(<?php echo (int)$doc['assignment_id']; ?>)">
                                                 <i class="fas fa-eye"></i> View
@@ -630,77 +666,68 @@ $conn->close();
             </div>
 
             <div class="modal-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-height: 600px; overflow-y: auto;">
-                    <div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                            <div class="form-group">
-                                <label>Tracking Code</label>
-                                <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                    <span id="viewTrackingCode">-</span>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Document Type</label>
-                                <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                    <span id="viewDocumentType">-</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Document Title</label>
-                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                <span id="viewTitle">-</span>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Description</label>
-                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
-                                <span id="viewDescription">-</span>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Assigned By</label>
-                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                <span id="viewAssignedBy">-</span>
-                            </div>
-                        </div>
-
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                            <div class="form-group">
-                                <label>Assigned At</label>
-                                <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                    <span id="viewAssignedAt">-</span>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Status</label>
-                                <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                                    <span id="viewStatus">-</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Notes / Instructions</label>
-                            <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
-                                <span id="viewNotes">-</span>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Form Details</label>
-                            <div id="viewFormDetails" style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 120px;"></div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Tracking Code</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
+                            <span id="viewTrackingCode">-</span>
                         </div>
                     </div>
 
-                    <div style="border-left: 1px solid #ddd; padding-left: 20px;">
-                        <h4 style="margin: 0 0 10px 0; color: var(--text-dark);">Digitalized Paper Format</h4>
-                        <div id="viewDigitalPaperPreview"></div>
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Document Type</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;" id="viewDocumentType">
+                            -
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="min-width: 200px;">
+                        <label style="font-size: 11px;">Title</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="viewTitle">
+                            -
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Assigned By</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;" id="viewAssignedBy">
+                            -
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Assigned At</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;" id="viewAssignedAt">
+                            -
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="min-width: 120px;">
+                        <label style="font-size: 11px;">Status</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;" id="viewStatus">
+                            -
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;" id="viewFormDetails">
+                    <label>Form Details</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        -
+                    </div>
+                </div>
+
+                <div class="form-group" id="viewDigitalPaperPreview">
+                    <label>Document Preview</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 80px; max-height: 200px; overflow-y: auto;">
+                        -
+                    </div>
+                </div>
+
+                <div class="form-group" id="viewNotes">
+                    <label>Notes</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        -
                     </div>
                 </div>
             </div>
@@ -804,10 +831,11 @@ $conn->close();
                         const content = safeParseJson(assignment.doc_notes);
                         selectedIncomingAssignmentId = assignmentId;
 
+
                         document.getElementById('viewTrackingCode').textContent = assignment.tracking_number || '-';
                         document.getElementById('viewDocumentType').textContent = assignment.document_type || '-';
                         document.getElementById('viewTitle').textContent = assignment.title || '-';
-                        document.getElementById('viewDescription').textContent = assignment.description || '-';
+                        // viewDescription does not exist in the modal, so skip it
                         document.getElementById('viewAssignedBy').textContent = ((assignment.assigner_first_name || '') + ' ' + (assignment.assigner_last_name || '')).trim() || '-';
                         document.getElementById('viewAssignedAt').textContent = assignment.assigned_at ? new Date(assignment.assigned_at).toLocaleString() : '-';
                         document.getElementById('viewStatus').textContent = assignment.assignment_status || '-';
@@ -820,11 +848,12 @@ $conn->close();
 
                         document.getElementById('viewIncomingModal').classList.add('active');
                     } else {
-                        alert('Error loading document details');
+                        console.error('Error:', data);
+                        alert('Error loading document details: ' + (data.message || 'Unknown error'));
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    console.error('Fetch error:', error);
                     alert('Error loading document details');
                 });
         }
@@ -870,5 +899,61 @@ $conn->close();
             });
         }
     </script>
+    <script>
+        /**
+         * Incoming Document Badge System
+         * Displays unread document count and marks documents as viewed
+         */
+        
+        function updateIncomingBadge() {
+            fetch('../api/get-document-counts.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.counts) {
+                        const incomingCount = data.counts.incoming || 0;
+                        const badgeElement = document.getElementById('incomingBadge');
+                        
+                        if (incomingCount > 0) {
+                            badgeElement.textContent = incomingCount;
+                            badgeElement.style.display = 'inline-flex';
+                        } else {
+                            badgeElement.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => console.error('Error loading badge count:', error));
+        }
+        
+        function markIncomingAsViewed() {
+            const formData = new FormData();
+            formData.append('category', 'incoming');
+            
+            fetch('../api/mark-documents-viewed.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update badge after marking as viewed
+                    updateIncomingBadge();
+                }
+            })
+            .catch(error => console.error('Error marking as viewed:', error));
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load badge count
+            updateIncomingBadge();
+            
+            // Mark all documents as viewed when page is loaded
+            markIncomingAsViewed();
+            
+            // Refresh badge count every 30 seconds
+            setInterval(updateIncomingBadge, 30000);
+        });
+    </script>
+    <script src="../js/notifications.js"></script>
 </body>
 </html>

@@ -469,10 +469,14 @@ $conn->close();
                         <i class="fas fa-users"></i>
                         <span>Accounts</span>
                     </a></li>
-                    <li class="divider"></li>
-                    <li><a href="#" class="admin-nav-item" title="Audit Trail" style="opacity: 0.5; cursor: not-allowed;">
+                    <li><a href="audit-logs.php" class="admin-nav-item" title="Audit Logs">
                         <i class="fas fa-history"></i>
                         <span>Audit Logs</span>
+                    </a></li>
+                    <li class="divider"></li>
+                    <li><a href="trackdocument.php" class="admin-nav-item" title="Track Document">
+                        <i class="fas fa-map-location-dot"></i>
+                        <span>Track Document</span>
                     </a></li>
                 </ul>
             </div>

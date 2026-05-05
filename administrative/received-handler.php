@@ -19,6 +19,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'Administrative Assistant
 }
 
 require_once '../config/db_connect.php';
+require_once '../config/notification_helpers.php';
 $user_id = intval($_SESSION['user_id']);
 
 function isTravelOrderType($value) {
@@ -138,17 +139,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Create uploads directory if it doesn't exist
-        $upload_dir = '../uploads/completions/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
+        $uploads_dir = dirname(__DIR__) . '/uploads/completions';
+        if (!is_dir($uploads_dir)) {
+            if (!mkdir($uploads_dir, 0755, true)) {
+                http_response_code(500);
+                echo json_encode(['success' => false, 'message' => 'Failed to create uploads directory']);
+                $conn->close();
+                exit;
+            }
         }
 
         // Generate unique filename
-        $file_ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $file_name = 'completion_' . $assignment_id . '_' . time() . '.' . $file_ext;
-        $file_path = $upload_dir . $file_name;
+        $file_extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $unique_filename = 'completion_' . $assignment_id . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $file_extension;
+        $file_path = $uploads_dir . '/' . $unique_filename;
 
-        // Move uploaded file
+        // Save file to disk
         if (!move_uploaded_file($file['tmp_name'], $file_path)) {
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Failed to save uploaded file']);
@@ -156,8 +162,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        // Store just the metadata and relative path in database (not the entire file)
+        $relative_path = 'uploads/completions/' . $unique_filename;
+        $completion_payload = json_encode([
+            'name' => $file['name'],
+            'type' => $file['type'],
+            'path' => $relative_path,
+            'size' => $file['size'],
+            'uploaded_at' => date('Y-m-d H:i:s')
+        ]);
+
+        if ($completion_payload === false) {
+            http_response_code(500);
+            // Clean up uploaded file on failure
+            if (file_exists($file_path)) {
+                unlink($file_path);
+            }
+            echo json_encode(['success' => false, 'message' => 'Failed to prepare uploaded file metadata']);
+            $conn->close();
+            exit;
+        }
+
         // Verify assignment and permissions
-        $sql_current = "SELECT da.status, d.document_type, sender.role as sender_role
+        $sql_current = "SELECT da.status, da.assigned_to, d.document_type, d.id as document_id, d.tracking_number, sender.role as sender_role
             FROM document_assignments da
             JOIN documents d ON da.document_id = d.id
             LEFT JOIN users sender ON d.sender_id = sender.id
@@ -165,7 +192,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $stmt_current = $conn->prepare($sql_current);
         if (!$stmt_current) {
-            unlink($file_path);
             http_response_code(500);
             echo json_encode(['success' => false, 'message' => 'Database error']);
             $conn->close();
@@ -177,7 +203,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $current_result = $stmt_current->get_result();
 
         if ($current_result->num_rows === 0) {
-            unlink($file_path);
             $stmt_current->close();
             http_response_code(404);
             echo json_encode(['success' => false, 'message' => 'Assignment not found or access denied']);
@@ -189,7 +214,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_current->close();
 
         if (!isTravelOrderType($current['document_type']) || ($current['sender_role'] ?? '') !== 'Department Staff') {
-            unlink($file_path);
             http_response_code(403);
             echo json_encode(['success' => false, 'message' => 'Status update is only allowed for Travel Order documents from Department Staff']);
             $conn->close();
@@ -197,6 +221,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $current_status = $current['status'];
+        $assigned_to = intval($current['assigned_to']);
+        $document_id = intval($current['document_id']);
+        $tracking_number = $current['tracking_number'] ?? '';
         $allowed_progression = [
             'Received' => 'Checking Documents',
             'Checking Documents' => 'Waiting For Approval by Mayor',
@@ -204,14 +231,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         if (!isset($allowed_progression[$current_status]) || $allowed_progression[$current_status] !== $next_status) {
-            unlink($file_path);
             http_response_code(400);
             echo json_encode(['success' => false, 'message' => 'Invalid workflow transition']);
             $conn->close();
             exit;
         }
 
-        // Update status with file reference
+        // Get the assigned_by (the person who assigned this to Administrative)
+        $sql_assigner = "SELECT da.assigned_by, d.tracking_number 
+                         FROM document_assignments da 
+                         JOIN documents d ON da.document_id = d.id 
+                         WHERE da.id = ? LIMIT 1";
+        $stmt_assigner = $conn->prepare($sql_assigner);
+        $stmt_assigner->bind_param('i', $assignment_id);
+        $stmt_assigner->execute();
+        $result_assigner = $stmt_assigner->get_result();
+        $assigner_data = $result_assigner->fetch_assoc();
+        $stmt_assigner->close();
+        
+        $notify_user_id = intval($assigner_data['assigned_by']);
+        $tracking_number = $assigner_data['tracking_number'] ?? '';
+
+        // Update status with database-stored file payload
         $conn->begin_transaction();
         try {
             $sql_update = "UPDATE document_assignments
@@ -226,17 +267,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Database error');
             }
 
-            $stmt_update->bind_param('ssii', $next_status, $file_name, $assignment_id, $user_id);
+            $stmt_update->bind_param('ssii', $next_status, $completion_payload, $assignment_id, $user_id);
             if (!$stmt_update->execute()) {
-                throw new Exception('Failed to update workflow status');
+                throw new Exception('Failed to update workflow status: ' . $stmt_update->error);
             }
             $stmt_update->close();
+
+            // Create notification for Department Staff (assigned_by) about status update
+            createCustomNotification(
+                $conn,
+                $notify_user_id,
+                $document_id,
+                $assignment_id,
+                $tracking_number,
+                "Administrative has updated your document status to: $next_status",
+                'status_update',
+                $current_status,
+                $next_status
+            );
 
             $conn->commit();
             echo json_encode(['success' => true, 'message' => 'Document marked as completed successfully', 'status' => $next_status]);
         } catch (Exception $e) {
             $conn->rollback();
-            unlink($file_path);
+            // Clean up uploaded file on failure
+            if (file_exists($file_path)) {
+                unlink($file_path);
+            }
             http_response_code(400);
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
@@ -268,7 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'Waiting For Approval by Mayor' => 'Completed'
     ];
 
-    $sql_current = "SELECT da.status, d.document_type, sender.role as sender_role
+    $sql_current = "SELECT da.status, da.assigned_to, d.document_type, d.id as document_id, d.tracking_number, sender.role as sender_role
         FROM document_assignments da
         JOIN documents d ON da.document_id = d.id
         LEFT JOIN users sender ON d.sender_id = sender.id
@@ -305,6 +362,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $current_status = $current['status'];
+    $document_id = intval($current['document_id']);
+    
+    // Get the assigned_by (the person who assigned this to Administrative)
+    $sql_assigner = "SELECT da.assigned_by, d.tracking_number 
+                     FROM document_assignments da 
+                     JOIN documents d ON da.document_id = d.id 
+                     WHERE da.id = ? LIMIT 1";
+    $stmt_assigner = $conn->prepare($sql_assigner);
+    $stmt_assigner->bind_param('i', $assignment_id);
+    $stmt_assigner->execute();
+    $result_assigner = $stmt_assigner->get_result();
+    $assigner_data = $result_assigner->fetch_assoc();
+    $stmt_assigner->close();
+    
+    $notify_user_id = intval($assigner_data['assigned_by']);
+    $tracking_number = $assigner_data['tracking_number'] ?? '';
+    
     if (!isset($allowed_progression[$current_status]) || $allowed_progression[$current_status] !== $next_status) {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => 'Invalid workflow transition']);
@@ -330,6 +404,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception('Failed to update workflow status');
         }
         $stmt_update->close();
+
+        // Create notification for Department Staff (assigned_by) about status update
+        createCustomNotification(
+            $conn,
+            $notify_user_id,
+            $document_id,
+            $assignment_id,
+            $tracking_number,
+            "Administrative has updated your document status to: $next_status",
+            'status_update',
+            $current_status,
+            $next_status
+        );
 
         $conn->commit();
         echo json_encode(['success' => true, 'message' => 'Status updated successfully', 'status' => $next_status]);

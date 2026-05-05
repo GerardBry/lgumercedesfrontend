@@ -136,6 +136,7 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Assign Documents - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="../css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .admin-page-container {
@@ -775,13 +776,6 @@ $conn->close();
                             <span>Archive</span>
                         </a>
                     </li>
-                    <li class="divider"></li>
-                    <li>
-                        <a href="#" class="admin-nav-item" style="opacity: 0.5; cursor: not-allowed;">
-                            <i class="fas fa-users"></i>
-                            <span>Staff (Coming Soon)</span>
-                        </a>
-                    </li>
                 </ul>
             </nav>
 
@@ -803,6 +797,12 @@ $conn->close();
 
         <!-- Main Content -->
         <div class="admin-main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 20px 40px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="admin-page">
                 <div class="page-header">
                     <div class="page-header-info">
@@ -842,8 +842,8 @@ $conn->close();
                                             <span class="badge badge-info"><?php echo htmlspecialchars($assignment['document_type'] ?? 'General'); ?></span>
                                         </td>
                                         <td><?php echo date('M d, Y H:i', strtotime($assignment['date_sent'] ?? $assignment['assigned_at'])); ?></td>
-                                        <td><?php echo substr(htmlspecialchars($assignment['description'] ?? ''), 0, 50) . (strlen($assignment['description'] ?? '') > 50 ? '...' : ''); ?></td>
-                                        <td><?php echo substr(htmlspecialchars($assignment['notes'] ?? ''), 0, 40) . (strlen($assignment['notes'] ?? '') > 40 ? '...' : ''); ?></td>
+                                        <td style="white-space: normal;"><?php echo nl2br(htmlspecialchars($assignment['description'] ?? '-')); ?></td>
+                                        <td style="white-space: normal;"><?php echo nl2br(htmlspecialchars($assignment['notes'] ?? '-')); ?></td>
                                         <td>
                                             <?php 
                                                 $status = $assignment['assignment_status'];
@@ -963,81 +963,75 @@ $conn->close();
             </div>
 
             <div class="modal-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Tracking Code</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Tracking Code</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewTrackingCode">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Document Type</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Document Type</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewDocumentType">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Document Title</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                        <span id="viewTitle">-</span>
+                    <div class="form-group" style="min-width: 200px;">
+                        <label style="font-size: 11px;">Title</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                            <span id="viewTitle">-</span>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Description</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 80px;">
-                        <span id="viewDescription">-</span>
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Sender</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Administrative</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewSender">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Date Sent</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Date Sent</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewDateSent">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Assigned To</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Department Staff</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewAssignedTo">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Department</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Department</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewDepartment">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div class="form-group">
-                        <label>Status</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 120px;">
+                        <label style="font-size: 11px;">Status</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewStatus">-</span>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Assigned At</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                    <div class="form-group" style="min-width: 150px;">
+                        <label style="font-size: 11px;">Assigned At</label>
+                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
                             <span id="viewAssignedAt">-</span>
                         </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>Description</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        <span id="viewDescription">-</span>
                     </div>
                 </div>
 
@@ -1261,5 +1255,6 @@ $conn->close();
             }
         });
     </script>
+    <script src="../js/notifications.js"></script>
 </body>
 </html>

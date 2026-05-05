@@ -19,6 +19,7 @@ if ($_SESSION['role'] !== 'Administrative Assistant') {
 }
 
 require_once '../config/db_connect.php';
+require_once '../config/notification_helpers.php';
 
 // Handle GET requests (view assignment details)
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'view') {
@@ -146,6 +147,9 @@ try {
     $stmt_assign->execute();
     $assignment_id = $conn->insert_id;
     $stmt_assign->close();
+
+    // Create notification for the assigned staff member
+    createAssignmentNotification($conn, $recipient_id, $document_id, $assignment_id, $tracking_code, $title);
 
     // Commit transaction
     $conn->commit();

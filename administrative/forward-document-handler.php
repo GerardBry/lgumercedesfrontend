@@ -50,11 +50,12 @@ if ($document_id <= 0 || $recipient_id <= 0 || $office === '') {
 }
 
 require_once '../config/db_connect.php';
+require_once '../config/notification_helpers.php';
 
 $conn->begin_transaction();
 
 try {
-    $sql_doc = 'SELECT id FROM documents WHERE id = ? AND created_by = ? LIMIT 1';
+    $sql_doc = 'SELECT id, tracking_number FROM documents WHERE id = ? AND created_by = ? LIMIT 1';
     $stmt_doc = $conn->prepare($sql_doc);
     if (!$stmt_doc) {
         throw new Exception('Database error while loading document');
@@ -67,6 +68,9 @@ try {
         $stmt_doc->close();
         throw new Exception('Document not found or access denied');
     }
+    
+    $doc_data = $doc_result->fetch_assoc();
+    $tracking_number = $doc_data['tracking_number'] ?? '';
     $stmt_doc->close();
 
     $sql_recipient = "SELECT id FROM users
@@ -126,6 +130,22 @@ try {
     $stmt_assign->execute();
     $assignment_id = $conn->insert_id;
     $stmt_assign->close();
+
+    // Create notification for Department Staff about forwarded document
+    $admin_name = $_SESSION['first_name'] ?? 'Administrative';
+    $forward_message = "Administrative - $admin_name with tracking number: $tracking_number forwarded a document";
+    
+    createCustomNotification(
+        $conn,
+        $recipient_id,
+        $document_id,
+        $assignment_id,
+        $tracking_number,
+        $forward_message,
+        'status_update',
+        null,
+        'Pending'
+    );
 
     $conn->commit();
 

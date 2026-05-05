@@ -92,6 +92,7 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Returned Documents - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="../css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .admin-container {
@@ -640,13 +641,6 @@ $conn->close();
                             <span>Archive</span>
                         </a>
                     </li>
-                    <li class="divider"></li>
-                    <li>
-                        <a href="#" class="admin-nav-item" style="opacity: 0.5; cursor: not-allowed;">
-                            <i class="fas fa-users"></i>
-                            <span>Staff (Coming Soon)</span>
-                        </a>
-                    </li>
                 </ul>
             </nav>
 
@@ -668,6 +662,12 @@ $conn->close();
 
         <!-- Main Content -->
         <div class="admin-main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 20px 40px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="admin-page">
                 <div class="page-header">
                     <h2>Returned Documents</h2>
@@ -849,5 +849,6 @@ $conn->close();
             document.getElementById('viewReturnedModal').classList.remove('active');
         }
     </script>
+    <script src="../js/notifications.js"></script>
 </body>
 </html>

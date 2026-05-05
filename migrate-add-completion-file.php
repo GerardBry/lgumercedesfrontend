@@ -1,7 +1,7 @@
 <?php
 /**
  * Database Migration - Add Completion File Support
- * Adds completion_file column to document_assignments for storing uploaded files on completion
+ * Ensures completion_file can store JSON-encoded file payloads for DB-backed previews.
  */
 
 require_once 'config/db_connect.php';
@@ -14,15 +14,21 @@ try {
     $result = $conn->query($sql_check);
     
     if ($result && $result->num_rows == 0) {
-        // Add completion_file column to store the filename of the uploaded completion file
-        $sql = "ALTER TABLE document_assignments ADD COLUMN completion_file VARCHAR(255) NULL AFTER completed_at";
+        // Add completion_file column to store JSON-encoded payloads (name, type, base64 data)
+        $sql = "ALTER TABLE document_assignments ADD COLUMN completion_file LONGTEXT NULL AFTER completed_at";
         if ($conn->query($sql)) {
             echo "[✓] Added completion_file column to document_assignments table\n";
         } else {
             throw new Exception("Error adding completion_file: " . $conn->error);
         }
     } else {
-        echo "[ℹ] completion_file column already exists\n";
+        // Upgrade older varchar columns so they can store JSON payloads
+        $sql = "ALTER TABLE document_assignments MODIFY COLUMN completion_file LONGTEXT NULL";
+        if ($conn->query($sql)) {
+            echo "[✓] Upgraded completion_file column to LONGTEXT\n";
+        } else {
+            throw new Exception("Error upgrading completion_file: " . $conn->error);
+        }
     }
 
     // Create uploads directory if it doesn't exist

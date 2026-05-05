@@ -56,6 +56,7 @@ $conn->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Returned - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
@@ -152,6 +153,12 @@ $conn->close();
 
         <!-- Main Content Area -->
         <main class="main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 15px 30px; border-bottom: 1px solid #eee; display: flex; justify-content: flex-end; align-items: center; background: white; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
             <div class="page active">
                 <div class="page-header">
                     <div class="header-with-button">
@@ -189,5 +196,6 @@ $conn->close();
     </div>
 
     <script src="script.js"></script>
+    <script src="js/notifications.js"></script>
 </body>
 </html>

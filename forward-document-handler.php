@@ -50,6 +50,7 @@ if ($document_id <= 0 || $incoming_tracking_code === '') {
 }
 
 require_once 'config/db_connect.php';
+require_once 'config/notification_helpers.php';
 
 $conn->begin_transaction();
 
@@ -136,6 +137,19 @@ try {
     $administrative_user_id = intval($source_assignment['assigned_by']);
     $office_department = trim($source_assignment['office_department'] ?? '');
 
+    $sql_staff = "SELECT first_name, last_name, office_department FROM users WHERE id = ? LIMIT 1";
+    $stmt_staff = $conn->prepare($sql_staff);
+    if (!$stmt_staff) {
+        throw new Exception('Database error while loading sender details');
+    }
+    $stmt_staff->bind_param('i', $user_id);
+    if (!$stmt_staff->execute()) {
+        throw new Exception('Failed to load sender details');
+    }
+    $result_staff = $stmt_staff->get_result();
+    $staff_details = $result_staff->fetch_assoc() ?: [];
+    $stmt_staff->close();
+
     // Align document tracking code to keep one connected transaction.
     $sql_update_document = "UPDATE documents
         SET tracking_number = ?, sender_id = ?, date_sent = NOW(), status = 'Pending'
@@ -220,13 +234,13 @@ try {
     error_log("DEBUG forward-document-handler.php - Successfully inserted assignment ID: " . $new_assignment_id);
     $stmt_insert_assignment->close();
 
-    // Once forwarded, close any matching Received administrative instruction(s)
-    // for this staff user and tracking code so it no longer appears in Received.
+        // Once forwarded, mark the source administrative instruction as forwarded.
+        // Final completion is done by Administrative after status updates/review.
     $sql_complete_source = "UPDATE document_assignments da
         JOIN documents d ON d.id = da.document_id
-        SET da.status = 'Completed', da.completed_at = NOW()
+                SET da.status = 'Forwarded', da.completed_at = NULL
         WHERE da.assigned_to = ?
-          AND da.status = 'Received'
+                    AND da.status IN ('Received', 'Checking Documents')
           AND da.assigned_by = ?
           AND d.tracking_number = ?";
 
@@ -240,6 +254,34 @@ try {
         throw new Exception('Failed to finalize source assignment status');
     }
     $stmt_complete_source->close();
+
+    // Notify Administrative assignee that the department staff has forwarded the document.
+    $staff_name = trim(($staff_details['first_name'] ?? '') . ' ' . ($staff_details['last_name'] ?? ''));
+    if ($staff_name === '') {
+        $staff_name = trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? ''));
+    }
+    if ($staff_name === '') {
+        $staff_name = 'Assigned staff';
+    }
+
+    $staff_office = trim($staff_details['office_department'] ?? $office_department);
+    if ($staff_office === '') {
+        $staff_office = 'Office';
+    }
+
+    $forward_message = "$staff_office - $staff_name with tracking number: $incoming_tracking_code forwarded a document";
+
+    createCustomNotification(
+        $conn,
+        $administrative_user_id,
+        $document_id,
+        $new_assignment_id,
+        $incoming_tracking_code,
+        $forward_message,
+        'status_update',
+        'Received',
+        'Forwarded'
+    );
 
     $conn->commit();
 

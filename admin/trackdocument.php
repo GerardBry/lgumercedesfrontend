@@ -1,34 +1,46 @@
 <?php
 /**
- * Track Documents Page - Administrative Staff
- * Search documents by tracking code
+ * Admin Track Documents Page
+ * Search documents by tracking code and view complete audit trail
+ * Super Admin only
  */
 session_start();
 
 // Check if user is logged in
 if (empty($_SESSION['user_id'])) {
-    header('Location: ../login.php');
+    header('Location: admin-login.php');
     exit;
 }
 
-// STRICT ROLE-BASED ACCESS CONTROL - Only Administrative Assistant allowed
-if (isset($_SESSION['role'])) {
-    // Block Super Admin
-    if ($_SESSION['role'] === 'Super Admin') {
-        header('Location: ../admin/admin-dashboard.php');
-        exit;
-    }
-    // Block Regular users
-    if ($_SESSION['role'] !== 'Administrative Assistant') {
-        header('Location: ../login.php');
-        exit;
-    }
+// STRICT ROLE-BASED ACCESS CONTROL - Only Super Admin allowed
+if ($_SESSION['role'] !== 'Super Admin') {
+    header('Location: ../index.php');
+    exit;
 }
 
+// Verify user role in database
+$admin_id = $_SESSION['user_id'];
+require_once '../config/db_connect.php';
+
+$role_check = $conn->prepare("SELECT role FROM users WHERE id = ? AND role = 'Super Admin' LIMIT 1");
+if ($role_check) {
+    $role_check->bind_param("i", $admin_id);
+    $role_check->execute();
+    $role_result = $role_check->get_result();
+    
+    if ($role_result->num_rows === 0) {
+        session_destroy();
+        header('Location: admin-login.php');
+        exit;
+    }
+    $role_check->close();
+}
+
+// Get user info from session
 $user_id = $_SESSION['user_id'];
-$first_name = $_SESSION['first_name'] ?? 'User';
+$first_name = $_SESSION['first_name'] ?? 'Admin';
 $last_name = $_SESSION['last_name'] ?? '';
-$role = $_SESSION['role'] ?? 'User';
+$role = $_SESSION['role'] ?? 'Super Admin';
 
 function formatNotesForDisplay($rawNotes) {
     if ($rawNotes === null) {
@@ -70,21 +82,7 @@ function formatNotesForDisplay($rawNotes) {
     return $rawNotes;
 }
 
-require_once '../config/db_connect.php';
-
-$user_details = null;
-$sql = "SELECT * FROM users WHERE id = ?";
-$stmt = $conn->prepare($sql);
-if ($stmt) {
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    if ($result->num_rows > 0) {
-        $user_details = $result->fetch_assoc();
-    }
-    $stmt->close();
-}
-
+// Tracking search functionality
 $tracking_code = isset($_GET['tracking_code']) ? trim($_GET['tracking_code']) : '';
 $search_performed = $tracking_code !== '';
 $results = [];
@@ -95,28 +93,8 @@ if ($search_performed) {
             d.id as document_id,
             d.tracking_number,
             d.title,
-                        (
-                                SELECT d_seed.description
-                                FROM document_assignments da_seed
-                                JOIN documents d_seed ON d_seed.id = da_seed.document_id
-                                WHERE d_seed.tracking_number = d.tracking_number
-                                    AND da_seed.assigned_by = ?
-                                    AND da_seed.assigned_to <> ?
-                                    AND COALESCE(TRIM(d_seed.description), '') <> ''
-                                ORDER BY da_seed.assigned_at ASC, da_seed.id ASC
-                                LIMIT 1
-                        ) as description,
-                        (
-                                SELECT da_seed.notes
-                                FROM document_assignments da_seed
-                                JOIN documents d_seed ON d_seed.id = da_seed.document_id
-                                WHERE d_seed.tracking_number = d.tracking_number
-                                    AND da_seed.assigned_by = ?
-                                    AND da_seed.assigned_to <> ?
-                                    AND COALESCE(TRIM(da_seed.notes), '') <> ''
-                                ORDER BY da_seed.assigned_at ASC, da_seed.id ASC
-                                LIMIT 1
-                        ) as notes_instructions,
+            d.description,
+            da.notes,
             d.document_type,
             d.status as document_status,
             d.date_sent,
@@ -134,13 +112,12 @@ if ($search_performed) {
         LEFT JOIN users recipient ON da.assigned_to = recipient.id
         LEFT JOIN users assigner ON da.assigned_by = assigner.id
         WHERE d.tracking_number = ?
-          AND (da.assigned_by = ? OR da.assigned_to = ?)
-                ORDER BY COALESCE(da.completed_at, da.received_at, da.assigned_at, d.date_sent) DESC, da.id DESC
-                LIMIT 1";
+        ORDER BY COALESCE(da.completed_at, da.received_at, da.assigned_at, d.date_sent) DESC, da.id DESC
+        LIMIT 1";
 
     $stmt_track = $conn->prepare($sql_track);
     if ($stmt_track) {
-        $stmt_track->bind_param("iiiisii", $user_id, $user_id, $user_id, $user_id, $tracking_code, $user_id, $user_id);
+        $stmt_track->bind_param("s", $tracking_code);
         $stmt_track->execute();
         $result_track = $stmt_track->get_result();
         while ($row = $result_track->fetch_assoc()) {
@@ -157,11 +134,11 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Track Documents - LGU Mercedes Document Tracking System</title>
+    <title>Track Documents - Admin Dashboard</title>
     <link rel="stylesheet" href="../styles.css">
-    <link rel="stylesheet" href="../css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* Admin Dashboard Specific Styles */
         .admin-container {
             display: flex;
             min-height: 100vh;
@@ -170,7 +147,7 @@ $conn->close();
 
         .admin-sidebar {
             width: 280px;
-            background-color: var(--sidebar-bg);
+            background: linear-gradient(180deg, #2c2c3e 0%, #1a1a2e 100%);
             color: #ffffff;
             position: fixed;
             left: 0;
@@ -183,21 +160,11 @@ $conn->close();
             overflow-y: auto;
         }
 
-        .admin-sidebar::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .admin-sidebar::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
+        .admin-sidebar::-webkit-scrollbar { width: 6px; }
+        .admin-sidebar::-webkit-scrollbar-track { background: transparent; }
         .admin-sidebar::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.2);
             border-radius: 3px;
-        }
-
-        .admin-sidebar::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.3);
         }
 
         .admin-sidebar-header {
@@ -233,10 +200,7 @@ $conn->close();
             overflow-y: auto;
         }
 
-        .admin-nav-menu ul {
-            list-style: none;
-        }
-
+        .admin-nav-menu ul { list-style: none; }
         .admin-nav-menu li {
             margin: 4px 0;
             padding: 0 12px;
@@ -263,10 +227,7 @@ $conn->close();
             cursor: pointer;
         }
 
-        .admin-nav-item i {
-            width: 20px;
-            text-align: center;
-        }
+        .admin-nav-item i { width: 20px; text-align: center; }
 
         .admin-nav-item:hover {
             background-color: rgba(255, 255, 255, 0.1);
@@ -307,9 +268,7 @@ $conn->close();
             font-weight: 600;
         }
 
-        .admin-user-info {
-            flex: 1;
-        }
+        .admin-user-info { flex: 1; }
 
         .admin-user-name {
             font-size: 13px;
@@ -342,10 +301,6 @@ $conn->close();
             text-decoration: none;
         }
 
-        .logout-btn:hover {
-            background-color: #d0d0d0;
-        }
-
         .admin-main-content {
             flex: 1;
             margin-left: 280px;
@@ -354,13 +309,9 @@ $conn->close();
             min-height: 100vh;
         }
 
-        .admin-page {
-            padding: 40px;
-        }
+        .admin-page { padding: 40px; }
 
-        .page-header {
-            margin-bottom: 24px;
-        }
+        .page-header { margin-bottom: 32px; }
 
         .page-header h2 {
             font-size: 28px;
@@ -374,50 +325,73 @@ $conn->close();
             color: var(--text-light);
         }
 
-        .search-card {
+        /* Search Section */
+        .search-section {
             background: var(--bg-white);
             border-radius: var(--radius-lg);
-            padding: 20px;
+            padding: 24px;
             box-shadow: var(--shadow-md);
-            margin-bottom: 24px;
+            margin-bottom: 32px;
         }
 
-        .search-form {
+        .search-box {
             display: flex;
             gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
         }
 
-        .search-input {
+        .search-box input {
             flex: 1;
-            min-width: 260px;
-            padding: 12px 14px;
+            padding: 12px 16px;
             border: 1px solid var(--border-color);
             border-radius: var(--radius-md);
             font-size: 14px;
+            background: var(--bg-white);
+            color: var(--text-dark);
         }
 
-        .search-input:focus {
+        .search-box input:focus {
             outline: none;
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.15);
+            box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.1);
         }
 
-        .btn-track {
-            padding: 12px 18px;
+        .btn {
+            padding: 10px 20px;
             border: none;
             border-radius: var(--radius-md);
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-            color: #ffffff;
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
+            transition: all 0.3s ease;
             display: inline-flex;
             align-items: center;
             gap: 8px;
         }
 
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .btn-info {
+            background-color: #0d7377;
+            color: #ffffff;
+        }
+
+        .btn-info:hover {
+            background-color: #09515a;
+        }
+
+        /* Table Section */
         .table-container {
             background: var(--bg-white);
             border-radius: var(--radius-lg);
@@ -450,366 +424,67 @@ $conn->close();
             border-bottom: 1px solid var(--border-color);
             font-size: 14px;
             color: var(--text-dark);
-            vertical-align: top;
         }
 
-        .data-table tbody tr:hover {
-            background-color: var(--bg-light);
-        }
-
-        .data-table tbody tr:last-child td {
-            border-bottom: none;
-        }
+        .data-table tbody tr:hover { background-color: var(--bg-light); }
+        .data-table tbody tr:last-child td { border-bottom: none; }
 
         .badge {
             display: inline-block;
-            padding: 4px 12px;
+            padding: 6px 12px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: 600;
         }
 
-        .badge-info {
-            background-color: #e3f2fd;
-            color: #1976d2;
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
         }
 
         .badge-warning {
-            background-color: #fff3e0;
-            color: #f57c00;
+            background-color: #fff3cd;
+            color: #856404;
         }
 
-        .badge-success {
-            background-color: #e8f5e9;
-            color: #388e3c;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-light);
-        }
-
-        /* Details Button & Timeline Modal */
-        .btn-details {
-            padding: 8px 14px;
-            border: none;
-            border-radius: var(--radius-md);
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-            color: #ffffff;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.3s ease;
-        }
-
-        .btn-details:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
-        }
-
-        /* Timeline Modal */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-overlay.active {
-            display: flex;
-        }
-
-        .timeline-modal {
-            background: var(--bg-white);
-            border-radius: var(--radius-lg);
-            width: 90%;
-            max-width: 900px;
-            max-height: 85vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        .modal-header-timeline {
-            padding: 24px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            background: var(--bg-white);
-            z-index: 10;
-        }
-
-        .modal-header-timeline h2 {
-            margin: 0;
-            font-size: 22px;
-            color: var(--text-dark);
-        }
-
-        .modal-close-btn {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: var(--text-light);
-            transition: color 0.3s;
-        }
-
-        .modal-close-btn:hover {
-            color: var(--text-dark);
-        }
-
-        .modal-body-timeline {
-            padding: 32px;
-        }
-
-        .document-summary {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
-            color: #ffffff;
-            padding: 20px;
-            border-radius: var(--radius-md);
-            margin-bottom: 32px;
-        }
-
-        .doc-summary-item {
-            margin: 8px 0;
-            font-size: 14px;
-        }
-
-        .doc-summary-label {
-            font-weight: 600;
-            opacity: 0.9;
-        }
-
-        .timeline-container {
-            position: relative;
-            padding: 0 0 0 40px;
-        }
-
-        .timeline-container::before {
-            content: '';
-            position: absolute;
-            left: 8px;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: linear-gradient(180deg, var(--primary-color), var(--primary-light));
-        }
-
-        .timeline-event {
-            position: relative;
-            margin-bottom: 28px;
-            padding: 0;
-        }
-
-        .timeline-event::before {
-            content: '';
-            position: absolute;
-            left: -40px;
-            top: 4px;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: var(--bg-white);
-            border: 3px solid var(--primary-color);
-            z-index: 5;
-        }
-
-        .timeline-event.completed::before {
-            background: #28a745;
-            border-color: #28a745;
-        }
-
-        .timeline-event.received::before {
-            background: #1976d2;
-            border-color: #1976d2;
-        }
-
-        .timeline-event.assigned::before {
-            background: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-
-        .timeline-event.created::before {
-            background: #6c757d;
-            border-color: #6c757d;
-        }
-
-        .event-card {
-            background: var(--bg-light);
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            padding: 16px;
-            border-radius: var(--radius-md);
-            transition: all 0.3s ease;
-        }
-
-        .timeline-event.completed .event-card {
-            background: rgba(40, 167, 69, 0.05);
-        }
-
-        .timeline-event.received .event-card {
-            background: rgba(25, 118, 210, 0.05);
-        }
-
-        .event-card:hover {
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        .event-title {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin: 0 0 8px 0;
-        }
-
-        .event-description {
-            font-size: 13px;
-            color: var(--text-dark);
-            margin: 0 0 12px 0;
-            line-height: 1.5;
-        }
-
-        .event-meta {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 12px;
-            font-size: 12px;
-            color: var(--text-light);
-        }
-
-        .meta-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .meta-label {
-            font-weight: 600;
-            color: var(--text-dark);
-        }
-
-        @media (max-width: 768px) {
-            .admin-sidebar {
-                width: 240px;
-            }
-
-            .admin-main-content {
-                margin-left: 240px;
-            }
-
-            .admin-page {
-                padding: 24px 16px;
-            }
-
-            .search-form {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .search-input {
-                min-width: 100%;
-            }
-
-            .timeline-modal {
-                width: 95%;
-                max-height: 90vh;
-            }
-
-            .modal-body-timeline {
-                padding: 16px;
-            }
-
-            .event-meta {
-                grid-template-columns: 1fr;
-            }
+        .badge-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
         }
     </style>
 </head>
 <body>
     <div class="admin-container">
+        <!-- Sidebar -->
         <div class="admin-sidebar">
             <div class="admin-sidebar-header">
                 <div class="admin-logo-icon">
-                    <i class="fas fa-cogs"></i>
+                    <i class="fas fa-shield-alt"></i>
                 </div>
-                <h1>Administrative Panel</h1>
+                <h1>Admin Panel</h1>
             </div>
 
-            <nav class="admin-nav-menu">
+            <div class="admin-nav-menu">
                 <ul>
-                    <li>
-                        <a href="admin-dashboard-staff.php" class="admin-nav-item">
-                            <i class="fas fa-tachometer-alt"></i>
-                            <span>Dashboard</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="trackdocument.php" class="admin-nav-item active">
-                            <i class="fas fa-search"></i>
-                            <span>Track Documents</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="documententry.php" class="admin-nav-item">
-                            <i class="fas fa-file-upload"></i>
-                            <span>Document Entry</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="assign-document.php" class="admin-nav-item">
-                            <i class="fas fa-file-export"></i>
-                            <span>Assign Documents</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="incoming.php" class="admin-nav-item">
-                            <i class="fas fa-inbox"></i>
-                            <span>Incoming</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="outgoing.php" class="admin-nav-item">
-                            <i class="fas fa-paper-plane"></i>
-                            <span>Outgoing</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="received.php" class="admin-nav-item">
-                            <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="returned.php" class="admin-nav-item">
-                            <i class="fas fa-undo"></i>
-                            <span>Returned</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="finished.php" class="admin-nav-item">
-                            <i class="fas fa-check-circle"></i>
-                            <span>Finished</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="archive.php" class="admin-nav-item">
-                            <i class="fas fa-archive"></i>
-                            <span>Archive</span>
-                        </a>
-                    </li>
+                    <li><a href="admin-dashboard.php" class="admin-nav-item" title="Dashboard">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                    </a></li>
+                    <li><a href="accounts.php" class="admin-nav-item" title="Manage Accounts">
+                        <i class="fas fa-users"></i>
+                        <span>Accounts</span>
+                    </a></li>
+                    <li><a href="audit-logs.php" class="admin-nav-item" title="Audit Logs">
+                        <i class="fas fa-history"></i>
+                        <span>Audit Logs</span>
+                    </a></li>
+                    <li class="divider"></li>
+                    <li><a href="trackdocument.php" class="admin-nav-item active" title="Track Document">
+                        <i class="fas fa-map-location-dot"></i>
+                        <span>Track Document</span>
+                    </a></li>
                 </ul>
-            </nav>
+            </div>
 
             <div class="admin-sidebar-footer">
                 <div class="admin-user-profile">
@@ -819,36 +494,30 @@ $conn->close();
                         <p class="admin-user-role"><?php echo htmlspecialchars($role); ?></p>
                     </div>
                 </div>
-                <a href="../logout.php" class="logout-btn">
+                <a href="admin-logout.php" class="logout-btn">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </a>
             </div>
         </div>
 
+        <!-- Main Content -->
         <div class="admin-main-content">
-            <!-- Header with Notifications -->
-            <div style="padding: 20px 40px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; position: relative; z-index: 10;">
-                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
-                    <!-- Notification Bell will be inserted here by notifications.js -->
-                </div>
-            </div>
             <div class="admin-page">
                 <div class="page-header">
-                    <h2>Track Documents</h2>
-                    <p>Search document status using tracking code only</p>
+                    <h2><i class="fas fa-map-location-dot" style="color: var(--primary-color); margin-right: 12px;"></i>Track Documents</h2>
+                    <p>Search and track any document in the system using its tracking code</p>
                 </div>
 
-                <div class="search-card">
-                    <form class="search-form" method="GET" action="trackdocument.php">
-                        <input
-                            type="text"
+                <div class="search-section">
+                    <form class="search-box" method="GET" action="trackdocument.php">
+                        <input 
+                            type="text" 
                             name="tracking_code"
-                            class="search-input"
                             placeholder="Enter tracking code (e.g., LGU-2026-04-23-913)"
                             value="<?php echo htmlspecialchars($tracking_code); ?>"
                             required
                         >
-                        <button type="submit" class="btn-track">
+                        <button type="submit" class="btn btn-primary">
                             <i class="fas fa-search"></i> Track
                         </button>
                     </form>
@@ -864,7 +533,6 @@ $conn->close();
                                 <th>Document Type</th>
                                 <th>Date Sent</th>
                                 <th>Description</th>
-                                <th>Notes/Instructions</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
@@ -872,11 +540,17 @@ $conn->close();
                         <tbody>
                             <?php if (!$search_performed): ?>
                                 <tr>
-                                    <td colspan="9" class="empty-state">Enter a tracking code to search</td>
+                                    <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
+                                        <i class="fas fa-search" style="font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.5;"></i>
+                                        Enter a tracking code to search
+                                    </td>
                                 </tr>
                             <?php elseif (count($results) === 0): ?>
                                 <tr>
-                                    <td colspan="9" class="empty-state">No record found for the tracking code you entered</td>
+                                    <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
+                                        <i class="fas fa-inbox" style="font-size: 32px; margin-bottom: 12px; display: block; opacity: 0.5;"></i>
+                                        No record found for the tracking code you entered
+                                    </td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($results as $row): ?>
@@ -889,13 +563,9 @@ $conn->close();
                                             $badge_class = 'badge-warning';
                                         } elseif ($status === 'Checking Documents') {
                                             $badge_class = 'badge-warning';
-                                        } elseif ($status === 'Waiting For Approval by Mayor') {
-                                            $badge_class = 'badge-info';
                                         } elseif ($status === 'Completed') {
                                             $badge_class = 'badge-success';
                                         }
-
-                                        $date_updated = $row['completed_at'] ?: ($row['received_at'] ?: $row['assigned_at']);
                                     ?>
                                     <tr>
                                         <td><strong><?php echo htmlspecialchars($row['tracking_number'] ?? 'N/A'); ?></strong></td>
@@ -904,10 +574,9 @@ $conn->close();
                                         <td><?php echo htmlspecialchars($row['document_type'] ?? '-'); ?></td>
                                         <td><?php echo $row['date_sent'] ? date('M d, Y h:i A', strtotime($row['date_sent'])) : '-'; ?></td>
                                         <td><?php echo htmlspecialchars($row['description'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars(formatNotesForDisplay($row['notes_instructions'] ?? '')); ?></td>
                                         <td><span class="badge <?php echo $badge_class; ?>"><?php echo htmlspecialchars($status); ?></span></td>
                                         <td>
-                                            <button class="btn-details" onclick="viewAuditTrail('<?php echo htmlspecialchars($row['tracking_number']); ?>')">
+                                            <button class="btn btn-sm btn-info" onclick="viewAuditTrail('<?php echo htmlspecialchars($row['tracking_number']); ?>')">
                                                 <i class="fas fa-history"></i> Details
                                             </button>
                                         </td>
@@ -922,26 +591,23 @@ $conn->close();
     </div>
 
     <!-- Audit Trail Timeline Modal -->
-    <div class="modal-overlay" id="auditTrailModal">
-        <div class="timeline-modal">
-            <div class="modal-header-timeline">
-                <h2><i class="fas fa-history" style="margin-right: 10px; color: var(--primary-color);"></i> Document Audit Trail</h2>
-                <button class="modal-close-btn" onclick="closeAuditTrail()">
+    <div id="auditTrailModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 2000; align-items: center; justify-content: center;">
+        <div style="background: var(--bg-white); border-radius: var(--radius-lg); width: 90%; max-width: 900px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+            <div style="padding: 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--bg-white); z-index: 10;">
+                <h2 style="margin: 0; font-size: 22px; color: var(--text-dark);"><i class="fas fa-history" style="margin-right: 10px; color: var(--primary-color);"></i> Document Audit Trail</h2>
+                <button onclick="closeAuditTrail()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-light);">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body-timeline">
-                <div id="timelineContent" class="timeline-container">
-                    <div style="text-align: center; padding: 40px; color: var(--text-light);">
-                        <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px;"></i>
-                        <p>Loading audit trail...</p>
-                    </div>
+            <div style="padding: 32px;" id="timelineContent">
+                <div style="text-align: center; padding: 40px; color: var(--text-light);">
+                    <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px;"></i>
+                    <p>Loading audit trail...</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="../script.js"></script>
     <script>
         // ==========================================
         // AUDIT TRAIL FUNCTIONS
@@ -952,11 +618,11 @@ $conn->close();
             const timelineContent = document.getElementById('timelineContent');
             
             // Show modal with loading
-            modal.classList.add('active');
+            modal.style.display = 'flex';
             timelineContent.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-light);"><i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px;"></i><p>Loading audit trail...</p></div>';
             
-            // Fetch audit trail data
-            fetch('track-handler.php?tracking_code=' + encodeURIComponent(trackingCode))
+            // Fetch audit trail data from admin API
+            fetch('../administrative/track-handler.php?tracking_code=' + encodeURIComponent(trackingCode))
                 .then(response => response.json())
                 .then(data => {
                     if (!data.success) {
@@ -968,36 +634,42 @@ $conn->close();
                     let html = '';
                     
                     // Document Summary
-                    html += '<div class="document-summary">';
+                    html += '<div style="background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%); color: #ffffff; padding: 20px; border-radius: var(--radius-md); margin-bottom: 32px;">';
                     html += '<div style="margin-bottom: 16px;">';
                     html += '<h3 style="margin: 0 0 12px 0; font-size: 18px;">' + htmlEscape(data.document.title) + '</h3>';
                     html += '</div>';
-                    html += '<div class="doc-summary-item"><span class="doc-summary-label">Tracking Code:</span> <strong>' + htmlEscape(data.document.tracking_number) + '</strong></div>';
-                    html += '<div class="doc-summary-item"><span class="doc-summary-label">Type:</span> ' + htmlEscape(data.document.document_type) + '</div>';
-                    html += '<div class="doc-summary-item"><span class="doc-summary-label">Status:</span> <strong style="color: #ffeb3b; text-shadow: 0 0 2px rgba(0,0,0,0.3);">' + htmlEscape(data.document.status) + '</strong></div>';
-                    html += '<div class="doc-summary-item"><span class="doc-summary-label">Created by:</span> ' + htmlEscape(data.document.created_by) + ' on ' + formatDatetime(data.document.created_at) + '</div>';
+                    html += '<div style="margin: 8px 0; font-size: 14px;"><strong style="opacity: 0.9;">Tracking Code:</strong> <strong>' + htmlEscape(data.document.tracking_number) + '</strong></div>';
+                    html += '<div style="margin: 8px 0; font-size: 14px;"><strong style="opacity: 0.9;">Type:</strong> ' + htmlEscape(data.document.document_type) + '</div>';
+                    html += '<div style="margin: 8px 0; font-size: 14px;"><strong style="opacity: 0.9;">Status:</strong> <strong style="color: #ffeb3b; text-shadow: 0 0 2px rgba(0,0,0,0.3);">' + htmlEscape(data.document.status) + '</strong></div>';
+                    html += '<div style="margin: 8px 0; font-size: 14px;"><strong style="opacity: 0.9;">Created by:</strong> ' + htmlEscape(data.document.created_by) + ' on ' + formatDatetime(data.document.created_at) + '</div>';
                     html += '</div>';
                     
                     // Timeline Events
-                    html += '<div class="timeline-container">';
+                    html += '<div style="position: relative; padding: 0 0 0 40px;">';
+                    html += '<div style="position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: linear-gradient(180deg, var(--primary-color), var(--primary-light));"></div>';
                     
                     if (data.timeline && data.timeline.length > 0) {
                         data.timeline.forEach((event, index) => {
-                            const eventClass = event.event_type || 'default';
-                            html += '<div class="timeline-event ' + htmlEscape(eventClass) + '">';
-                            html += '<div class="event-card">';
-                            html += '<h4 class="event-title"><i class="fas fa-' + getEventIcon(event.event_type) + '" style="margin-right: 8px;"></i>' + htmlEscape(event.title) + '</h4>';
-                            html += '<p class="event-description">' + event.description + '</p>';
-                            html += '<div class="event-meta">';
-                            html += '<div class="meta-item"><span class="meta-label"><i class="fas fa-user" style="margin-right: 4px;"></i>By:</span> <strong>' + htmlEscape(event.who) + '</strong>';
+                            let bulletColor = '#6c757d';
+                            if (event.event_type === 'completed') bulletColor = '#28a745';
+                            else if (event.event_type === 'received') bulletColor = '#1976d2';
+                            else if (event.event_type === 'assigned') bulletColor = 'var(--primary-color)';
+                            
+                            html += '<div style="position: relative; margin-bottom: 28px;">';
+                            html += '<div style="position: absolute; left: -40px; top: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg-white); border: 3px solid ' + bulletColor + '; z-index: 5;"></div>';
+                            html += '<div style="background: var(--bg-light); border: 1px solid rgba(0, 0, 0, 0.05); padding: 16px; border-radius: var(--radius-md);">';
+                            html += '<h4 style="font-size: 15px; font-weight: 600; color: var(--text-dark); margin: 0 0 8px 0;"><i class="fas fa-' + getEventIcon(event.event_type) + '" style="margin-right: 8px;"></i>' + htmlEscape(event.title) + '</h4>';
+                            html += '<p style="font-size: 13px; color: var(--text-dark); margin: 0 0 12px 0; line-height: 1.5;">' + event.description + '</p>';
+                            html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 12px; color: var(--text-light);">';
+                            html += '<div style="display: flex; align-items: center; gap: 6px;"><span style="font-weight: 600; color: var(--text-dark);"><i class="fas fa-user" style="margin-right: 4px;"></i>By:</span> <strong>' + htmlEscape(event.who) + '</strong>';
                             if (event.who_position) {
                                 html += ' (' + htmlEscape(event.who_position) + ')';
                             }
                             html += '</div>';
-                            html += '<div class="meta-item"><span class="meta-label"><i class="fas fa-clock" style="margin-right: 4px;"></i>Time:</span> <strong>' + formatDatetime(event.timestamp) + '</strong></div>';
+                            html += '<div style="display: flex; align-items: center; gap: 6px;"><span style="font-weight: 600; color: var(--text-dark);"><i class="fas fa-clock" style="margin-right: 4px;"></i>Time:</span> <strong>' + formatDatetime(event.timestamp) + '</strong></div>';
                             
                             if (event.recipient) {
-                                html += '<div class="meta-item"><span class="meta-label"><i class="fas fa-arrow-right" style="margin-right: 4px;"></i>To:</span> <strong>' + htmlEscape(event.recipient) + '</strong>';
+                                html += '<div style="display: flex; align-items: center; gap: 6px;"><span style="font-weight: 600; color: var(--text-dark);"><i class="fas fa-arrow-right" style="margin-right: 4px;"></i>To:</span> <strong>' + htmlEscape(event.recipient) + '</strong>';
                                 if (event.recipient_role) {
                                     html += ' (' + htmlEscape(event.recipient_role) + ')';
                                 }
@@ -1006,11 +678,11 @@ $conn->close();
                             
                             if (event.status) {
                                 const badgeColor = getBadgeColor(event.status);
-                                html += '<div class="meta-item"><span class="meta-label"><i class="fas fa-tag" style="margin-right: 4px;"></i>Status:</span> <span style="background: ' + badgeColor + '; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 11px;">' + htmlEscape(event.status) + '</span></div>';
+                                html += '<div style="display: flex; align-items: center; gap: 6px;"><span style="font-weight: 600; color: var(--text-dark);"><i class="fas fa-tag" style="margin-right: 4px;"></i>Status:</span> <span style="background: ' + badgeColor + '; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 11px;">' + htmlEscape(event.status) + '</span></div>';
                             }
                             
                             if (event.notes) {
-                                html += '<div class="meta-item" style="grid-column: 1 / -1;"><span class="meta-label"><i class="fas fa-sticky-note" style="margin-right: 4px;"></i>Notes:</span> ' + htmlEscape(event.notes) + '</div>';
+                                html += '<div style="grid-column: 1 / -1;"><span style="font-weight: 600; color: var(--text-dark);"><i class="fas fa-sticky-note" style="margin-right: 4px;"></i>Notes:</span> ' + htmlEscape(event.notes) + '</div>';
                             }
                             
                             html += '</div>';
@@ -1032,7 +704,7 @@ $conn->close();
         }
         
         function closeAuditTrail() {
-            document.getElementById('auditTrailModal').classList.remove('active');
+            document.getElementById('auditTrailModal').style.display = 'none';
         }
         
         function getEventIcon(eventType) {
@@ -1099,6 +771,5 @@ $conn->close();
             }
         });
     </script>
-    <script src="../js/notifications.js"></script>
 </body>
 </html>

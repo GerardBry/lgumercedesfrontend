@@ -84,7 +84,7 @@ $sql = "SELECT
         da.id as assignment_id,
         d.id as document_id,
         d.title,
-        d.description,
+        (SELECT d_orig.description FROM documents d_orig WHERE d_orig.tracking_number = d.tracking_number ORDER BY d_orig.date_sent ASC, d_orig.id ASC LIMIT 1) as description,
         d.tracking_number,
         d.document_type,
         d.date_sent,
@@ -92,10 +92,11 @@ $sql = "SELECT
         u_sender.first_name as sender_first_name,
         u_sender.last_name as sender_last_name,
         da.office_department,
-        da.notes as assignment_notes,
+        (SELECT da_orig.notes FROM document_assignments da_orig JOIN documents d_orig ON da_orig.document_id = d_orig.id WHERE d_orig.tracking_number = d.tracking_number AND da_orig.assigned_by != da_orig.assigned_to ORDER BY da_orig.assigned_at ASC, da_orig.id ASC LIMIT 1) as assignment_notes,
         da.status as assignment_status,
         da.assigned_at,
-        da.completed_at
+        da.completed_at,
+        da.completion_file
     FROM document_assignments da
     JOIN documents d ON da.document_id = d.id
     LEFT JOIN users u_sender ON d.sender_id = u_sender.id
@@ -124,6 +125,7 @@ $conn->close();
     <title>Finished Documents - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="../styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/notifications.css">
     <style>
         .admin-container {
             display: flex;
@@ -323,6 +325,17 @@ $conn->close();
 
         .page-header {
             margin-bottom: 32px;
+        }
+
+        .page-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .page-header-left {
+            flex: 1;
         }
 
         .page-header h2 {
@@ -671,13 +684,6 @@ $conn->close();
                             <span>Archive</span>
                         </a>
                     </li>
-                    <li class="divider"></li>
-                    <li>
-                        <a href="#" class="admin-nav-item" style="opacity: 0.5; cursor: not-allowed;">
-                            <i class="fas fa-users"></i>
-                            <span>Staff (Coming Soon)</span>
-                        </a>
-                    </li>
                 </ul>
             </nav>
 
@@ -699,10 +705,21 @@ $conn->close();
 
         <!-- Main Content -->
         <div class="admin-main-content">
+            <!-- Header with Notifications -->
+            <div style="padding: 20px 40px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: flex-end; align-items: center; position: relative; z-index: 10;">
+                <div class="header-right" style="display: flex; gap: 16px; align-items: center; position: relative;">
+                    <!-- Notification Bell will be inserted here by notifications.js -->
+                </div>
+            </div>
+
             <div class="admin-page">
                 <div class="page-header">
-                    <h2>Finished Documents</h2>
-                    <p>Documents that have been completed</p>
+                    <div class="page-header-top">
+                        <div class="page-header-left">
+                            <h2>Finished Documents</h2>
+                            <p>Documents that have been completed</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="table-container">
@@ -763,7 +780,7 @@ $conn->close();
 
     <!-- View Finished Document Modal -->
     <div id="viewFinishedModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 900px; width: 90%;">
             <div class="modal-header">
                 <h3>Document Details</h3>
                 <button class="modal-close" onclick="closeFinishedModal()">
@@ -772,65 +789,61 @@ $conn->close();
             </div>
 
             <div class="modal-body">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px;">
                     <div class="form-group">
-                        <label>Tracking Code</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                        <label style="font-size: 11px;">Tracking Code</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
                             <span id="viewTrackingCode">-</span>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Document Type</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                        <label style="font-size: 11px;">Document Type</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
                             <span id="viewDocumentType">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Document Title</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
-                        <span id="viewTitle">-</span>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>Description</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 80px;">
-                        <span id="viewDescription">-</span>
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
-                        <label>From Sender</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                        <label style="font-size: 11px;">Title</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px; white-space: normal;">
+                            <span id="viewTitle">-</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="font-size: 11px;">From Sender</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
                             <span id="viewSender">-</span>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Date Sent</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                        <label style="font-size: 11px;">Date Sent</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
                             <span id="viewDateSent">-</span>
                         </div>
                     </div>
-                </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
-                        <label>Completed At</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                        <label style="font-size: 11px;">Completed At</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
                             <span id="viewCompletedAt">-</span>
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Status</label>
-                        <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500;">
+                        <label style="font-size: 11px;">Status</label>
+                        <div style="padding: 12px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 600; font-size: 13px;">
                             <span id="viewStatus">-</span>
                         </div>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>Description</label>
+                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
+                        <span id="viewDescription">-</span>
                     </div>
                 </div>
 
@@ -838,6 +851,17 @@ $conn->close();
                     <label>Notes / Instructions</label>
                     <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
                         <span id="viewNotes">-</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Uploaded File</label>
+                    <div id="viewImageContainer" style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 80px; display: none; overflow-x: hidden; overflow-y: auto;">
+                        <img id="viewImage" src="" alt="Document" style="max-width: 100%; height: auto; border-radius: var(--radius-md); cursor: pointer; display: block; margin: 0 auto;" onclick="openFullImage()">
+                        <p id="viewImageName" style="margin-top: 8px; font-size: 12px; color: var(--text-light);"></p>
+                    </div>
+                    <div id="viewNoImage" style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); color: var(--text-light);">
+                        No document/image uploaded
                     </div>
                 </div>
             </div>
@@ -849,9 +873,9 @@ $conn->close();
     </div>
 
     <script>
-        function formatNotesFromJSON(notesJson) {
+        function formatNotes(notesJson) {
             if (!notesJson) return '-';
-            
+
             try {
                 const decoded = JSON.parse(notesJson);
                 if (typeof decoded === 'object' && decoded !== null) {
@@ -860,23 +884,23 @@ $conn->close();
                     if (decoded.purpose) parts.push('Purpose: ' + decoded.purpose);
                     if (decoded.subject) parts.push('Subject: ' + decoded.subject);
                     if (decoded.type) parts.push('Type: ' + decoded.type);
-                    
+
                     return parts.length > 0 ? parts.join(' | ') : notesJson;
                 }
             } catch (e) {
                 // Not JSON, return as-is
             }
-            
+
             return notesJson;
         }
 
         function viewFinishedDocument(assignmentId) {
             // Fetch assignment details from server
-            fetch('finished-handler.php?action=view&id=' + assignmentId)
+            fetch('../get-document-details.php?assignment_id=' + assignmentId)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success && data.assignment) {
-                        const assignment = data.assignment;
+                    if (data.success && data.document) {
+                        const assignment = data.document;
                         
                         // Populate modal with data
                         document.getElementById('viewTrackingCode').textContent = assignment.tracking_number || '-';
@@ -890,6 +914,32 @@ $conn->close();
                         // Prioritize document description for Notes/Instructions display
                         const displayNotes = assignment.description ? assignment.description : (assignment.assignment_notes || '-');
                         document.getElementById('viewNotes').textContent = displayNotes;
+                        
+                        // Handle database-backed completion paper display
+                        if (assignment.has_completion_file) {
+                            const fileUrl = '../get-document-file.php?assignment_id=' + assignment.assignment_id;
+                            const fileName = assignment.completion_file_name || 'Uploaded paper';
+                            const extension = fileName.split('.').pop().toLowerCase();
+                            const imageTypes = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+                            if (imageTypes.includes(extension)) {
+                                document.getElementById('viewImageContainer').innerHTML = `
+                                    <img src="${fileUrl}" alt="Uploaded file" style="width: 100%; height: auto; max-height: 420px; object-fit: contain; display: block; margin: 0 auto; border-radius: var(--radius-md);" />
+                                    <p style="margin-top: 8px; font-size: 12px; color: var(--text-light);">${fileName}</p>
+                                `;
+                            } else {
+                                document.getElementById('viewImageContainer').innerHTML = `
+                                    <div style="width: 100%; overflow-x: hidden; overflow-y: auto;">
+                                        <iframe src="${fileUrl}" style="width: 100%; height: 320px; border: 0; border-radius: var(--radius-md); background: #fff;"></iframe>
+                                    </div>
+                                    <p style="margin-top: 8px; font-size: 12px; color: var(--text-light);">${fileName}</p>
+                                `;
+                            }
+                            document.getElementById('viewImageContainer').style.display = 'block';
+                            document.getElementById('viewNoImage').style.display = 'none';
+                        } else {
+                            document.getElementById('viewImageContainer').style.display = 'none';
+                            document.getElementById('viewNoImage').style.display = 'block';
+                        }
                         
                         // Open modal
                         document.getElementById('viewFinishedModal').classList.add('active');
@@ -907,5 +957,8 @@ $conn->close();
             document.getElementById('viewFinishedModal').classList.remove('active');
         }
     </script>
+    
+    <!-- Notification System -->
+    <script src="../js/notifications.js"></script>
 </body>
 </html>
