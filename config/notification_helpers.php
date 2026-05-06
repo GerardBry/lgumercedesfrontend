@@ -52,14 +52,20 @@ function createCustomNotification($conn, $user_id, $document_id, $assignment_id,
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, FALSE)";
 
     $stmt = $conn->prepare($sql);
-    if ($stmt) {
-        $stmt->bind_param('issiisss', $user_id, $type, $tracking_number, $document_id, $assignment_id, $old_status, $new_status, $message);
-        $result = $stmt->execute();
-        $stmt->close();
-        return $result;
+    if (!$stmt) {
+        return false;
     }
-
-    return false;
+    
+    // Bind parameters - handle NULL values properly for status fields
+    $stmt->bind_param('issiisss', $user_id, $type, $tracking_number, $document_id, $assignment_id, $old_status, $new_status, $message);
+    
+    $result = $stmt->execute();
+    if (!$result) {
+        error_log("Notification insert error: " . $stmt->error);
+    }
+    $stmt->close();
+    
+    return $result;
 }
 
 /**

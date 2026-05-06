@@ -6,6 +6,7 @@
  * Also handles saving documents as drafts.
  */
 session_start();
+header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);

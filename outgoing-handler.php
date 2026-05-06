@@ -4,6 +4,7 @@
  * Fetch document details for viewing outgoing documents
  */
 session_start();
+header('Content-Type: application/json');
 
 // Check if user is logged in
 if (empty($_SESSION['user_id'])) {

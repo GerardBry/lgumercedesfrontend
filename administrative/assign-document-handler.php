@@ -3,6 +3,7 @@
  * Assign Document Handler - Process document assignments with tracking
  */
 session_start();
+header('Content-Type: application/json');
 
 // Check if user is logged in
 if (empty($_SESSION['user_id'])) {

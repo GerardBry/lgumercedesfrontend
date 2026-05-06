@@ -4,6 +4,7 @@
  * Fetch document details for incoming assignments and mark as received
  */
 session_start();
+header('Content-Type: application/json');
 
 if (empty($_SESSION['user_id'])) {
     http_response_code(401);
@@ -143,35 +144,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     JOIN documents d ON da.document_id = d.id 
                     WHERE da.id = ?";
         $stmt_get = $conn->prepare($sql_get);
+        if (!$stmt_get) {
+            throw new Exception("Prepare failed: " . $conn->error);
+        }
         $stmt_get->bind_param('i', $assignment_id);
-        $stmt_get->execute();
+        if (!$stmt_get->execute()) {
+            throw new Exception("Execute failed: " . $stmt_get->error);
+        }
         $result_get = $stmt_get->get_result();
         $assignment_data = $result_get->fetch_assoc();
         $stmt_get->close();
+        
+        if (!$assignment_data) {
+            throw new Exception("Assignment data not found");
+        }
         
         $assigned_by = intval($assignment_data['assigned_by']);
         $document_id = intval($assignment_data['document_id']);
         $tracking_number = $assignment_data['tracking_number'] ?? '';
         
         $sql_update_assignment = "UPDATE document_assignments
-                                  SET status = 'Received', received_at = NOW(), viewed_at = NOW()
+                                  SET status = 'Received', received_at = NOW()
                                   WHERE id = ? AND assigned_to = ?";
         $stmt_update_assignment = $conn->prepare($sql_update_assignment);
+        if (!$stmt_update_assignment) {
+            throw new Exception("Prepare assignment update failed: " . $conn->error);
+        }
         $stmt_update_assignment->bind_param('ii', $assignment_id, $user_id);
-        $stmt_update_assignment->execute();
+        if (!$stmt_update_assignment->execute()) {
+            throw new Exception("Execute assignment update failed: " . $stmt_update_assignment->error);
+        }
         $stmt_update_assignment->close();
         
         $sql_update_document = "UPDATE documents
                                SET status = 'Received'
                                WHERE id = ?";
         $stmt_update_document = $conn->prepare($sql_update_document);
+        if (!$stmt_update_document) {
+            throw new Exception("Prepare document update failed: " . $conn->error);
+        }
         $stmt_update_document->bind_param('i', $document_id);
-        $stmt_update_document->execute();
+        if (!$stmt_update_document->execute()) {
+            throw new Exception("Execute document update failed: " . $stmt_update_document->error);
+        }
         $stmt_update_document->close();
         
         // Create notification for Department Staff that Administrative received their document
         $admin_name = $_SESSION['first_name'] ?? 'Administrative';
-        createCustomNotification(
+        $notification_result = createCustomNotification(
             $conn,
             $assigned_by,
             $document_id,
@@ -182,6 +202,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'Pending',
             'Received'
         );
+        
+        if (!$notification_result) {
+            throw new Exception("Failed to create notification");
+        }
         
         $conn->commit();
         echo json_encode(['success' => true, 'message' => 'Document marked as received']);

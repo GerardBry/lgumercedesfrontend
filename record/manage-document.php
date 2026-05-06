@@ -1,0 +1,663 @@
+<?php
+/**
+ * Manage Documents Page
+ * Record Officer - Document Management Interface
+ */
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+session_start();
+header('Content-Type: text/html; charset=utf-8');
+
+// STRICT ROLE-BASED ACCESS CONTROL
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role'])) {
+    header('Location: ../login.php');
+    exit;
+}
+
+// Only allow Record Officer role
+if ($_SESSION['role'] !== 'Record Officer') {
+    header('Location: ../login.php');
+    exit;
+}
+
+require_once '../config/db_connect.php';
+
+$officer_id = $_SESSION['user_id'];
+$first_name = $_SESSION['first_name'] ?? 'Record Officer';
+$last_name = $_SESSION['last_name'] ?? '';
+
+// Get filtering parameters
+$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
+$office_filter = isset($_GET['office']) ? $_GET['office'] : '';
+$user_filter = isset($_GET['user']) ? $_GET['user'] : '';
+$type_filter = isset($_GET['type']) ? $_GET['type'] : '';
+$date_from = isset($_GET['date_from']) ? $_GET['date_from'] : '';
+$date_to = isset($_GET['date_to']) ? $_GET['date_to'] : '';
+
+// Get all offices for filter dropdown
+$offices = [];
+$office_result = $conn->query("SELECT DISTINCT office_department FROM document_assignments WHERE office_department IS NOT NULL AND office_department != '' ORDER BY office_department");
+if ($office_result) {
+    while ($row = $office_result->fetch_assoc()) {
+        $offices[] = $row['office_department'];
+    }
+}
+
+// Get all users for filter dropdown
+$users = [];
+$user_result = $conn->query("SELECT DISTINCT u.id, u.first_name, u.last_name FROM document_assignments da JOIN users u ON da.assigned_by = u.id WHERE u.role NOT IN ('Super Admin', 'Record Officer') ORDER BY u.first_name, u.last_name");
+if ($user_result) {
+    while ($row = $user_result->fetch_assoc()) {
+        $users[] = $row;
+    }
+}
+
+// Build document query with filters
+// If no status filter (All Status), get latest status for each document (exclude Forwarded)
+if (!$status_filter) {
+    $document_query = "SELECT 
+        da.id as assignment_id,
+        d.id as document_id,
+        d.tracking_number,
+        d.title,
+        d.document_type,
+        d.description,
+        d.date_sent,
+        d.status as document_status,
+        da.status as assignment_status,
+        da.office_department,
+        da.assigned_at,
+        da.received_at,
+        da.completed_at,
+        u_creator.first_name as creator_first_name,
+        u_creator.last_name as creator_last_name,
+        u_assigned.first_name as assigned_to_first_name,
+        u_assigned.last_name as assigned_to_last_name
+    FROM document_assignments da
+    JOIN documents d ON da.document_id = d.id
+    LEFT JOIN users u_creator ON da.assigned_by = u_creator.id
+    LEFT JOIN users u_assigned ON da.assigned_to = u_assigned.id
+    WHERE (da.document_id, da.assigned_at) IN (
+        SELECT document_id, MAX(assigned_at) 
+        FROM document_assignments 
+        WHERE status != 'Forwarded'
+        GROUP BY document_id
+    )
+    AND da.status != 'Forwarded'";
+} else {
+    // Specific status selected
+    $document_query = "SELECT 
+        da.id as assignment_id,
+        d.id as document_id,
+        d.tracking_number,
+        d.title,
+        d.document_type,
+        d.description,
+        d.date_sent,
+        d.status as document_status,
+        da.status as assignment_status,
+        da.office_department,
+        da.assigned_at,
+        da.received_at,
+        da.completed_at,
+        u_creator.first_name as creator_first_name,
+        u_creator.last_name as creator_last_name,
+        u_assigned.first_name as assigned_to_first_name,
+        u_assigned.last_name as assigned_to_last_name
+    FROM document_assignments da
+    JOIN documents d ON da.document_id = d.id
+    LEFT JOIN users u_creator ON da.assigned_by = u_creator.id
+    LEFT JOIN users u_assigned ON da.assigned_to = u_assigned.id
+    WHERE da.status = ?";
+}
+
+$params = [];
+$types = '';
+
+// Only add status parameter if status filter is set
+if ($status_filter) {
+    $params[] = $status_filter;
+    $types .= 's';
+}
+
+if ($office_filter) {
+    $document_query .= " AND da.office_department = ?";
+    $params[] = $office_filter;
+    $types .= 's';
+}
+
+if ($user_filter) {
+    $document_query .= " AND da.assigned_by = ?";
+    $params[] = intval($user_filter);
+    $types .= 'i';
+}
+
+if ($type_filter) {
+    $document_query .= " AND d.document_type = ?";
+    $params[] = $type_filter;
+    $types .= 's';
+}
+
+if ($date_from) {
+    $document_query .= " AND DATE(d.date_sent) >= ?";
+    $params[] = $date_from;
+    $types .= 's';
+}
+
+if ($date_to) {
+    $document_query .= " AND DATE(d.date_sent) <= ?";
+    $params[] = $date_to;
+    $types .= 's';
+}
+
+$document_query .= " ORDER BY COALESCE(da.completed_at, da.received_at, da.assigned_at, d.date_sent) DESC LIMIT 100";
+
+$documents = [];
+if ($types) {
+    $stmt = $conn->prepare($document_query);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $documents[] = $row;
+    }
+    $stmt->close();
+} else {
+    $result = $conn->query($document_query);
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $documents[] = $row;
+        }
+    }
+}
+
+$conn->close();
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Documents - Record Officer</title>
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #ff9500;
+            --sidebar-bg: #1a1a2e;
+            --bg-white: #ffffff;
+            --bg-light: #f5f5f5;
+            --text-dark: #333333;
+            --text-light: #666666;
+            --border-color: #e0e0e0;
+            --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --radius-lg: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            color: #ffffff;
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--primary-color), #ffa500);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .nav-menu ul {
+            list-style: none;
+        }
+
+        .nav-menu li {
+            margin: 4px 0;
+            padding: 0 12px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .nav-item.active {
+            background: linear-gradient(135deg, var(--primary-color), #ffa500);
+            color: #ffffff;
+        }
+
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-color), #ffa500);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            font-weight: 600;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-size: 13px;
+            font-weight: 600;
+            color: #ffffff;
+            margin: 0;
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 2px 0 0 0;
+        }
+
+        .logout-btn {
+            background-color: #e0e0e0;
+            color: var(--text-dark);
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            background-color: var(--bg-light);
+            overflow-y: auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page {
+            padding: 40px;
+            display: block;
+            width: 100%;
+            flex: 1;
+        }
+
+        .page-header {
+            margin-bottom: 32px;
+            display: block;
+            width: 100%;
+        }
+
+        .page-header h2 {
+            font-size: 28px;
+            margin-bottom: 8px;
+            color: var(--text-dark);
+            font-weight: 700;
+        }
+
+        .page-header p {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--bg-white);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+        }
+
+        .data-table thead th {
+            background-color: #f5f5f5;
+            padding: 16px 12px;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-dark);
+            border-bottom: 2px solid var(--border-color);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table tbody td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 13px;
+        }
+
+        .data-table tbody tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-completed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .badge-returned {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #e68900;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .filters-section {
+            background-color: #fafafa;
+            padding: 20px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            display: block;
+            width: 100%;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-light);
+        }
+
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <i class="fas fa-file-archive"></i>
+                </div>
+                <h1>Record Officer</h1>
+            </div>
+
+            <nav class="nav-menu">
+                <ul>
+                    <li><a href="admin-dashboard-officer.php" class="nav-item"><i class="fas fa-th-large"></i><span>Dashboard</span></a></li>
+                    <li style="margin: 12px 0; padding: 0; height: 1px; background: rgba(255,255,255,0.1);"></li>
+                    <li><a href="manage-document.php" class="nav-item active"><i class="fas fa-folder-open"></i><span>Manage Documents</span></a></li>
+                    <li><a href="audit-record.php" class="nav-item"><i class="fas fa-history"></i><span>Audit Logs</span></a></li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="avatar"><?php echo strtoupper(substr($first_name, 0, 1) . substr($last_name, 0, 1)); ?></div>
+                    <div class="user-info">
+                        <p class="user-name"><?php echo htmlspecialchars($first_name . ' ' . $last_name); ?></p>
+                        <p class="user-role">Record Officer</p>
+                    </div>
+                </div>
+                <a href="../logout.php" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="page">
+                <div class="page-header">
+                    <h2><i class="fas fa-folder-open" style="color: var(--primary-color); margin-right: 12px;"></i>Manage Documents</h2>
+                    <p>View and manage all document assignments</p>
+                </div>
+
+                <!-- Filters -->
+                <div class="filters-section">
+                    <form method="GET" action="">
+                        <div class="filters-grid">
+                            <div class="filter-group">
+                                <label>Office/Department</label>
+                                <select name="office" onchange="this.form.submit()">
+                                    <option value="">All Offices</option>
+                                    <?php foreach ($offices as $office): ?>
+                                        <option value="<?php echo htmlspecialchars($office); ?>" <?php echo $office_filter === $office ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($office); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label>Created By</label>
+                                <select name="user" onchange="this.form.submit()">
+                                    <option value="">All Users</option>
+                                    <?php foreach ($users as $user): ?>
+                                        <option value="<?php echo $user['id']; ?>" <?php echo $user_filter == $user['id'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label>Document Type</label>
+                                <select name="type" onchange="this.form.submit()">
+                                    <option value="">All Types</option>
+                                    <option value="Travel Request" <?php echo $type_filter === 'Travel Request' ? 'selected' : ''; ?>>Travel Request</option>
+                                    <option value="Office Order" <?php echo $type_filter === 'Office Order' ? 'selected' : ''; ?>>Office Order</option>
+                                    <option value="Executive Request" <?php echo $type_filter === 'Executive Request' ? 'selected' : ''; ?>>Executive Request</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label>Date From</label>
+                                <input type="date" name="date_from" value="<?php echo htmlspecialchars($date_from); ?>" onchange="this.form.submit()">
+                            </div>
+
+                            <div class="filter-group">
+                                <label>Date To</label>
+                                <input type="date" name="date_to" value="<?php echo htmlspecialchars($date_to); ?>" onchange="this.form.submit()">
+                            </div>
+
+                            <div class="filter-group">
+                                <label>&nbsp;</label>
+                                <select name="status" onchange="this.form.submit()">
+                                    <option value="">All Status</option>
+                                    <option value="Pending" <?php echo $status_filter === 'Pending' ? 'selected' : ''; ?>>Pending</option>
+                                    <option value="Received" <?php echo $status_filter === 'Received' ? 'selected' : ''; ?>>Received</option>
+                                    <option value="Completed" <?php echo $status_filter === 'Completed' ? 'selected' : ''; ?>>Completed</option>
+                                    <option value="Returned" <?php echo $status_filter === 'Returned' ? 'selected' : ''; ?>>Returned</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Documents Table -->
+                <?php if (count($documents) > 0): ?>
+                    <div style="overflow-x: auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Tracking Code</th>
+                                    <th>Title</th>
+                                    <th>Type</th>
+                                    <th>Office</th>
+                                    <th>Created By</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($documents as $doc): ?>
+                                    <?php
+                                        $status = $doc['assignment_status'];
+                                        $badge_class = 'badge-pending';
+                                        if ($status === 'Completed') $badge_class = 'badge-completed';
+                                        elseif ($status === 'Returned') $badge_class = 'badge-returned';
+                                    ?>
+                                    <tr>
+                                        <td><strong><?php echo htmlspecialchars($doc['tracking_number']); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($doc['title']); ?></td>
+                                        <td><?php echo htmlspecialchars($doc['document_type']); ?></td>
+                                        <td><?php echo htmlspecialchars($doc['office_department'] ?? '-'); ?></td>
+                                        <td><?php echo htmlspecialchars(($doc['creator_first_name'] ?? '') . ' ' . ($doc['creator_last_name'] ?? '')); ?></td>
+                                        <td><?php echo $doc['date_sent'] ? date('M d, Y', strtotime($doc['date_sent'])) : '-'; ?></td>
+                                        <td><span class="badge <?php echo $badge_class; ?>"><?php echo htmlspecialchars($status); ?></span></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>No documents found</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
