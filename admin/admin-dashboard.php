@@ -83,7 +83,7 @@ if ($result) {
 
 // Recent login attempts
 $recent_logins = [];
-$result = $conn->query("SELECT email, username, success, created_at FROM login_attempts ORDER BY created_at DESC LIMIT 10");
+$result = $conn->query("SELECT email, username, success, attempted_at FROM login_attempts ORDER BY attempted_at DESC LIMIT 10");
 if ($result) {
     while ($row = $result->fetch_assoc()) {
         $recent_logins[] = $row;
