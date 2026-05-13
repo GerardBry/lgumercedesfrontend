@@ -49,12 +49,6 @@
                     <span>Finished</span>
                 </a>
             </li>
-            <li>
-                <a href="archive.php" class="nav-item" data-page="archive">
-                    <i class="fas fa-archive"></i>
-                    <span>Archive</span>
-                </a>
-            </li>
             <li class="divider"></li>
             <li>
                 <a href="profile.php" class="nav-item" data-page="profile">

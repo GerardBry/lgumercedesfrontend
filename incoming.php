@@ -134,7 +134,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Incoming - LGU Mercedes Document Tracking System</title>
+    <title>Returned- LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -187,19 +187,12 @@ $conn->close();
                             <span>Track Documents</span>
                         </a>
                     </li>
-                    <li>    
+                    <li class="divider"></li>
+                    </li>
+                                        <li>    
                         <a href="documententry.php" class="nav-item" data-page="entry">
                             <i class="fas fa-file-upload"></i>
-                            <span>Documents</span>
-                        </a>
-                    </li>
-                    <li class="divider"></li>
-                    <li>
-                        <a href="incoming.php" class="nav-item active" data-page="incoming">
-                            <div>
-                                <i class="fas fa-inbox"></i>
-                                <span>Incoming</span>
-                            </div>
+                            <span>Incoming</span>
                         </a>
                     </li>
                     <li>
@@ -227,14 +220,14 @@ $conn->close();
                             </div>
                         </a>
                     </li>
-                    <li>
-                        <a href="archive.php" class="nav-item" data-page="archive">
+                                       <li>
+                        <a href="incoming.php" class="nav-item" data-page="incoming">
                             <div>
-                                <i class="fas fa-archive"></i>
-                                <span>Archive</span>
+                                <i class="fas fa-inbox"></i>
+                                <span>Returned</span>
                             </div>
                         </a>
-                    </li>
+                    
                     <li>
                         <a href="reports.php" class="nav-item" data-page="reports">
                             <div>
@@ -279,8 +272,8 @@ $conn->close();
                 <div class="page-header">
                     <div class="header-with-button">
                         <div>
-                            <h2>Incoming Documents</h2>
-                            <p>Documents received but not yet processed</p>
+                            <h2>Returned Documents</h2>
+                            <p>Documents Returned</p>
                         </div>
                     </div>
                 </div>

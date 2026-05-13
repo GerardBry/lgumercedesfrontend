@@ -992,16 +992,6 @@ $conn->close();
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-icon stat-pending">
-                            <i class="fas fa-hourglass-half"></i>
-                        </div>
-                        <div class="stat-content">
-                            <div class="stat-label">Pending Documents</div>
-                            <div class="stat-value"><?php echo $pending_docs; ?></div>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
                         <div class="stat-icon stat-returned">
                             <i class="fas fa-undo"></i>
                         </div>
@@ -1011,35 +1001,7 @@ $conn->close();
                         </div>
                     </div>
 
-                    <div class="stat-card">
-                        <div class="stat-icon stat-travel">
-                            <i class="fas fa-plane"></i>
-                        </div>
-                        <div class="stat-content">
-                            <div class="stat-label">Travel Requests</div>
-                            <div class="stat-value"><?php echo $travel_completed; ?></div>
-                        </div>
-                    </div>
 
-                    <div class="stat-card">
-                        <div class="stat-icon stat-office">
-                            <i class="fas fa-building"></i>
-                        </div>
-                        <div class="stat-content">
-                            <div class="stat-label">Office Orders</div>
-                            <div class="stat-value"><?php echo $office_order_completed; ?></div>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-icon stat-executive">
-                            <i class="fas fa-crown"></i>
-                        </div>
-                        <div class="stat-content">
-                            <div class="stat-label">Executive Requests</div>
-                            <div class="stat-value"><?php echo $executive_completed; ?></div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Your Permissions -->

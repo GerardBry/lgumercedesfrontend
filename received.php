@@ -186,16 +186,10 @@ $conn->close();
                             <span>Track Documents</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="divider"></li>
+                                        <li>    
                         <a href="documententry.php" class="nav-item" data-page="entry">
                             <i class="fas fa-file-upload"></i>
-                            <span>Documents</span>
-                        </a>
-                    </li>
-                    <li class="divider"></li>
-                    <li>
-                        <a href="incoming.php" class="nav-item" data-page="incoming">
-                            <i class="fas fa-inbox"></i>
                             <span>Incoming</span>
                         </a>
                     </li>
@@ -206,7 +200,7 @@ $conn->close();
                         </a>
                     </li>
                     <li>
-                        <a href="received.php" class="nav-item active" data-page="received">
+                        <a href="received.php" class="nav-item" data-page="received">
                             <i class="fas fa-envelope-open"></i>
                             <span>Approved</span>
                         </a>
@@ -217,12 +211,14 @@ $conn->close();
                             <span>Finished</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="archive.php" class="nav-item" data-page="archive">
-                            <i class="fas fa-archive"></i>
-                            <span>Archive</span>
+                                       <li>
+                        <a href="incoming.php" class="nav-item" data-page="incoming">
+                            <div>
+                                <i class="fas fa-inbox"></i>
+                                <span>Returned</span>
+                            </div>
                         </a>
-                    </li>
+
                     <li>
                         <a href="reports.php" class="nav-item" data-page="reports">
                             <i class="fas fa-chart-pie"></i>

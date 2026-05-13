@@ -56,8 +56,12 @@ if ($returnedAtCheck && $returnedAtCheck->num_rows > 0) {
     $hasReturnedAt = true;
 }
 
-$returnedAtSelect = $hasReturnedAt ? "IFNULL(da.returned_at, da.assigned_at) as returned_at" : "da.assigned_at as returned_at";
-$returnedAtOrder = $hasReturnedAt ? "IFNULL(da.returned_at, da.assigned_at) DESC, " : "da.assigned_at DESC, ";
+$returnedAtSelect = $hasReturnedAt
+    ? "COALESCE(da.returned_at, (SELECT MAX(n.created_at) FROM notifications n WHERE n.assignment_id = da.id AND n.new_status = 'Returned'), da.assigned_at) as returned_at"
+    : "COALESCE((SELECT MAX(n.created_at) FROM notifications n WHERE n.assignment_id = da.id AND n.new_status = 'Returned'), da.assigned_at) as returned_at";
+$returnedAtOrder = $hasReturnedAt
+    ? "COALESCE(da.returned_at, (SELECT MAX(n.created_at) FROM notifications n WHERE n.assignment_id = da.id AND n.new_status = 'Returned'), da.assigned_at) DESC, "
+    : "COALESCE((SELECT MAX(n.created_at) FROM notifications n WHERE n.assignment_id = da.id AND n.new_status = 'Returned'), da.assigned_at) DESC, ";
 $sql = "SELECT 
         da.id as assignment_id,
         d.id as document_id,
@@ -774,7 +778,7 @@ $conn->close();
                                             $senderName = 'N/A';
                                         }
                                         $priorityValue = $doc['priority'] ?? 'N/A';
-                                        $dateReceived = $doc['date_received'] ?? $doc['returned_at'] ?? $doc['date_sent'] ?? '';
+                                        $dateReceived = $doc['returned_at'] ?? $doc['date_received'] ?? $doc['date_sent'] ?? '';
                                         $filterDate = $dateReceived ? date('Y-m-d', strtotime($dateReceived)) : '';
                                         $keywordSource = strtolower(trim(($doc['tracking_number'] ?? '') . ' ' . ($doc['title'] ?? '') . ' ' . ($senderName ?? '') . ' ' . ($doc['description'] ?? '') . ' ' . ($doc['assignment_notes'] ?? '')));
                                     ?>

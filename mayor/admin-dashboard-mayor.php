@@ -525,19 +525,17 @@ $conn->close();
                         </a>
                     </li>
                     <li>
-                        <a href="#" class="admin-nav-item" onclick="alert('Reports and analytics coming soon')">
-                            <i class="fas fa-chart-bar"></i>
-                            <span>Reports & Analytics</span>
+                        <a href="documents.php" class="admin-nav-item">
+                            <i class="fas fa-folder-open"></i>
+                            <span>Documents</span>
                         </a>
                     </li>
                     <li>
-                        <a href="#" class="admin-nav-item" onclick="alert('Document status monitoring coming soon')">
-                            <i class="fas fa-clipboard-list"></i>
-                            <span>Document Status</span>
+                        <a href="report.php" class="admin-nav-item">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>Reports</span>
                         </a>
                     </li>
-                    <li class="divider"></li>
-                </ul>
             </nav>
 
             <div class="admin-sidebar-footer">
@@ -619,15 +617,6 @@ $conn->close();
                     </div>
                 </div>
 
-                <!-- Reports & Analytics -->
-                <div class="mayor-section">
-                    <h3>
-                        <i class="fas fa-chart-bar" style="color: var(--primary-color);"></i>
-                        Reports & Analytics
-                        <span class="coming-soon-badge">Coming Soon</span>
-                    </h3>
-                    <p style="color: #999; margin: 0;">Generate comprehensive reports and analytics on system usage and document processing metrics.</p>
-                </div>
 
                 <!-- Document & Request Status -->
                 <div class="mayor-section">
@@ -638,20 +627,13 @@ $conn->close();
                     <ul class="permissions-list">
                         <li>
                             <i class="fas fa-check"></i>
-                            <span>Status of documents, requests, and tasks</span>
+                            <span>Status of document</span>
                         </li>
                         <li>
                             <i class="fas fa-check"></i>
                             <span>View system-wide document processing metrics</span>
                         </li>
                         <li>
-                            <i class="fas fa-check"></i>
-                            <span>Monitor departmental performance and workflows</span>
-                        </li>
-                        <li>
-                            <i class="fas fa-check"></i>
-                            <span>Track constituent requests and resolution status</span>
-                        </li>
                     </ul>
                 </div>
 
@@ -668,11 +650,7 @@ $conn->close();
                         </li>
                         <li>
                             <i class="fas fa-check"></i>
-                            <span>Access Reports and Analytics (coming soon)</span>
-                        </li>
-                        <li>
-                            <i class="fas fa-check"></i>
-                            <span>Monitor document and request status</span>
+                            <span>Monitor document Status</span>
                         </li>
                         <li>
                             <i class="fas fa-check"></i>

@@ -1122,19 +1122,19 @@ document.addEventListener('keydown', function(e) {
 
 function initializeNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
-    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
-    
+    const currentPage = window.location.pathname.split('/').pop() || 'index.php';
+
+    // Clear any pre-existing active classes to avoid multiple highlights
+    navItems.forEach(i => i.classList.remove('active'));
+
     navItems.forEach(item => {
-        // Get the href attribute
-        const href = item.getAttribute('href');
-        
-        // Mark the active nav item based on current page
-        if (href === currentPage || (href === 'index.php' && currentPage === '')) {
+        const href = item.getAttribute('href') || '';
+        const hrefPage = href.split('/').pop();
+
+        // Mark the active nav item only when the filename matches exactly
+        if (hrefPage === currentPage || (hrefPage === 'index.php' && currentPage === '')) {
             item.classList.add('active');
         }
-        
-        // Allow natural navigation via href
-        // Don't prevent default - let links work normally
     });
 }
 

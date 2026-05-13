@@ -119,14 +119,16 @@ $dept_doc_stats = [
     'archive' => 0
 ];
 
-// Total documents - match report.php exactly using final_status logic
-$latest_docs_sql = "SELECT tracking_number, MAX(id) AS latest_id FROM documents WHERE office_department = '$escaped_dept' AND status <> 'Pending' GROUP BY tracking_number";
+// Total documents - count only the latest transaction per tracking_number
+// Use same final status logic as reports.php but scope results to this department
+$latest_docs_sql = "SELECT tracking_number, MAX(id) AS latest_id FROM documents GROUP BY tracking_number";
 $final_status_expr = "CASE
+    WHEN EXISTS (SELECT 1 FROM document_assignments da_returned WHERE da_returned.document_id = d.id AND da_returned.status = 'Returned') THEN 'Returned'
     WHEN EXISTS (SELECT 1 FROM document_assignments da_completed WHERE da_completed.document_id = d.id AND da_completed.status = 'Completed') THEN 'Completed'
     WHEN EXISTS (SELECT 1 FROM document_assignments da_approved WHERE da_approved.document_id = d.id AND da_approved.status = 'Approved') THEN 'Approved'
     ELSE d.status
 END";
-$status_summary_sql = "SELECT d.id, $final_status_expr AS final_status FROM documents d INNER JOIN ($latest_docs_sql) latest ON latest.latest_id = d.id";
+$status_summary_sql = "SELECT d.id, d.tracking_number, $final_status_expr AS final_status FROM documents d INNER JOIN ($latest_docs_sql) latest ON latest.latest_id = d.id WHERE d.office_department = '$escaped_dept'";
 
 $result = $conn->query("SELECT COUNT(*) as count FROM ($status_summary_sql) docs");
 if ($result) {
@@ -141,8 +143,8 @@ if ($result) {
     $dept_doc_stats['incoming'] = $row['count'];
 }
 
-// Outgoing: assignments created by users from this department (exclude completed/archived/returned)
-$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments da JOIN users u ON da.assigned_by = u.id WHERE u.office_department = '$escaped_dept' AND da.status NOT IN ('Completed','Archived','Returned')");
+// Outgoing: assignments created by users from this department, excluding incoming states
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments da JOIN users u ON da.assigned_by = u.id WHERE u.office_department = '$escaped_dept' AND da.status NOT IN ('Pending','Forwarded','Completed','Archived','Returned')");
 if ($result) {
     $row = $result->fetch_assoc();
     $dept_doc_stats['outgoing'] = $row['count'];
@@ -702,49 +704,17 @@ $conn->close();
                     <p>Manage your department&apos;s <?php echo htmlspecialchars($department); ?> documents and activities.</p>
                 </div>
 
-                <!-- Statistics - Department Document Cards -->
+                <!-- Statistics - Department Document Cards (simplified to Total Documents) -->
                 <div class="admin-stats-grid">
-                    <div class="admin-stat-card" data-stat="incoming">
-                        <div class="admin-stat-icon stat-incoming">
-                            <i class="fas fa-inbox"></i>
+                    <div class="admin-stat-card" data-stat="total_documents">
+                        <div class="admin-stat-icon stat-total">
+                            <i class="fas fa-folder-open"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Incoming</div>
-                            <div class="admin-stat-value"><?php echo $dept_doc_stats['incoming']; ?></div>
+                            <div class="admin-stat-label">Total Documents</div>
+                            <div class="admin-stat-value"><?php echo $dept_doc_stats['total_documents']; ?></div>
                         </div>
                     </div>
-
-                    <div class="admin-stat-card" data-stat="outgoing">
-                        <div class="admin-stat-icon stat-outgoing">
-                            <i class="fas fa-paper-plane"></i>
-                        </div>
-                        <div class="admin-stat-content">
-                            <div class="admin-stat-label">Outgoing</div>
-                            <div class="admin-stat-value"><?php echo $dept_doc_stats['outgoing']; ?></div>
-                        </div>
-                    </div>
-
-                    <div class="admin-stat-card" data-stat="received">
-                        <div class="admin-stat-icon stat-received">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="admin-stat-content">
-                            <div class="admin-stat-label">Approved</div>
-                            <div class="admin-stat-value"><?php echo $dept_doc_stats['received']; ?></div>
-                        </div>
-                    </div>
-
-                    <div class="admin-stat-card" data-stat="finished">
-                        <div class="admin-stat-icon stat-finished">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="admin-stat-content">
-                            <div class="admin-stat-label">Finished</div>
-                            <div class="admin-stat-value"><?php echo $dept_doc_stats['finished']; ?></div>
-                        </div>
-                    </div>
-
-                    <!-- Archive card removed per request -->
                 </div>
                 <!-- Your Permissions -->
                 <h3 class="admin-section-title"><i class="fas fa-lock-open" style="color: var(--primary-color);"></i> Your Permissions</h3>
@@ -797,10 +767,7 @@ $conn->close();
                 .then(res => res.json())
                 .then(data => {
                     console.debug('get-dept-stats response', data);
-                    const dbg = document.getElementById('dept-stats-debug');
-                    if (dbg) dbg.textContent = 'Response: ' + JSON.stringify(data);
                     if (!data || data.error) {
-                        if (dbg && data && data.error) dbg.textContent = 'Error: ' + data.error;
                         return;
                     }
                     const stats = data.stats || data;
@@ -811,7 +778,7 @@ $conn->close();
                             total_documents: data.diag.global_documents || 0,
                             incoming: (Number(byStatus['Pending']) || 0) + (Number(byStatus['Forwarded']) || 0),
                             outgoing: Object.keys(byStatus).reduce((acc, s) => {
-                                if (!['Completed','Archived','Returned'].includes(s)) return acc + (Number(byStatus[s]) || 0);
+                                if (!['Pending','Forwarded','Completed','Archived','Returned'].includes(s)) return acc + (Number(byStatus[s]) || 0);
                                 return acc;
                             }, 0),
                             received: Number(byStatus['Approved']) || 0,
@@ -822,7 +789,6 @@ $conn->close();
                             const el = document.querySelector(`[data-stat="${key}"] .admin-stat-value`);
                             if (el) el.textContent = fallback[key];
                         });
-                        if (dbg) dbg.textContent = dbg.textContent + ' — Using global fallback counts';
                     } else {
                         Object.keys(stats).forEach(key => {
                             const el = document.querySelector(`[data-stat="${key}"] .admin-stat-value`);
@@ -833,15 +799,10 @@ $conn->close();
                 .catch(err => {
                     // silently ignore; server-side values remain as fallback
                     console.error('Failed to fetch dept stats', err);
-                    const dbg = document.getElementById('dept-stats-debug');
-                    if (dbg) dbg.textContent = 'Fetch error: ' + err;
                 });
         })();
     </script>
-    <style>
-        #dept-stats-debug { margin: 12px 0 24px 0; padding: 12px; background:#fff; border:1px dashed #e0e0e0; color:#333; font-size:13px; }
-    </style>
-    <div id="dept-stats-debug">Debug: waiting for response...</div>
+    <script src="../js/notifications.js"></script>
     <script src="../js/notifications.js"></script>
 </body>
 </html>

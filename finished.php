@@ -227,16 +227,10 @@ $conn->close();
                             <span>Track Documents</span>
                         </a>
                     </li>
-                    <li>
+                    <li class="divider"></li>
+                                        <li>    
                         <a href="documententry.php" class="nav-item" data-page="entry">
                             <i class="fas fa-file-upload"></i>
-                            <span>Documents</span>
-                        </a>
-                    </li>
-                    <li class="divider"></li>
-                    <li>
-                        <a href="incoming.php" class="nav-item" data-page="incoming">
-                            <i class="fas fa-inbox"></i>
                             <span>Incoming</span>
                         </a>
                     </li>
@@ -253,15 +247,15 @@ $conn->close();
                         </a>
                     </li>
                     <li>
-                        <a href="finished.php" class="nav-item active" data-page="finished">
+                        <a href="finished.php" class="nav-item" data-page="finished">
                             <i class="fas fa-check-circle"></i>
                             <span>Finished</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="archive.php" class="nav-item" data-page="archive">
-                            <i class="fas fa-archive"></i>
-                            <span>Archive</span>
+                                        <li>
+                        <a href="incoming.php" class="nav-item" data-page="incoming">
+                            <i class="fas fa-inbox"></i>
+                            <span>Returned</span>
                         </a>
                     </li>
                     <li>

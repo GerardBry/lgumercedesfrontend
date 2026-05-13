@@ -581,3 +581,269 @@ File error code: 0
 About to insert document...
   user_dept: Municipal Health Office
   file_path: uploads/documents/DOC-0015-1778660924-6a04363c6e2fb.jpg
+
+=== 2026-05-13 16:49:29 ===
+Fields received:
+  title: 'asdas'
+  sender: 'dasdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0015-1778662169-6a043b19bc754.jpg
+
+=== 2026-05-13 20:47:10 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0015-1778676430-6a0472ce4d49b.jpg
+
+=== 2026-05-14 01:06:14 ===
+Fields received:
+  title: 'asdas'
+  sender: 'dasdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0015-1778691974-6a04af86e5848.jpg
+
+=== 2026-05-14 01:12:20 ===
+Fields received:
+  title: 'asd'
+  sender: 'asdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0015-1778692340-6a04b0f4bfb19.jpg
+
+=== 2026-05-14 02:00:32 ===
+Fields received:
+  title: 'asd'
+  sender: 'asdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Engineering Office
+  file_path: uploads/documents/DOC-0017-1778695232-6a04bc40ab79a.jpg
+
+=== 2026-05-14 02:14:41 ===
+Fields received:
+  title: 'Invitation to Leadership Development Seminar'
+  sender: 'Human Resource Department'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Local Civil Registrar
+  file_path: uploads/documents/DOC-0019-1778696081-6a04bf91cc8c4.webp
+
+=== 2026-05-14 02:15:22 ===
+Fields received:
+  title: 'Annual Business Innovation Conference Invitation'
+  sender: 'Corporate Affairs Office'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Local Civil Registrar
+  file_path: uploads/documents/DOC-0019-1778696122-6a04bfbab22c5.jpg
+
+=== 2026-05-14 02:16:18 ===
+Fields received:
+  title: 'Digital Marketing Workshop Invitation'
+  sender: 'Marketing Department'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Local Civil Registrar
+  file_path: uploads/documents/DOC-0019-1778696178-6a04bff2a3699.jpg
+
+=== 2026-05-14 02:17:38 ===
+Fields received:
+  title: 'Invitation to Financial Literacy Seminar'
+  sender: 'Finance Department'
+  classification: 'Travel-Related Communication'
+  sub_classification: 'Meeting Assignment'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Local Civil Registrar
+  file_path: uploads/documents/DOC-0019-1778696258-6a04c04237441.png
+
+=== 2026-05-14 02:18:57 ===
+Fields received:
+  title: 'Health and Wellness Awareness Seminar'
+  sender: 'Employee Welfare Office'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Local Civil Registrar
+  file_path: uploads/documents/DOC-0019-1778696337-6a04c09111f35.webp
+
+=== 2026-05-14 02:19:59 ===
+Fields received:
+  title: 'Customer Service Excellence Seminar Invitation'
+  sender: 'Customer Relations Department'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Local Civil Registrar
+  file_path: uploads/documents/DOC-0019-1778696399-6a04c0cf79e2d.webp
+
+=== 2026-05-14 02:30:41 ===
+Fields received:
+  title: 'Invitation to Career Development Workshop'
+  sender: 'Career Development Office'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Treasurer's Office
+  file_path: uploads/documents/DOC-0020-1778697041-6a04c3514b4f8.webp
+
+=== 2026-05-14 02:31:14 ===
+Fields received:
+  title: 'Environmental Sustainability Forum Invitation'
+  sender: 'Environmental Programs Office'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Treasurer's Office
+  file_path: uploads/documents/DOC-0020-1778697074-6a04c372eb6ad.jpg
+
+=== 2026-05-14 02:31:56 ===
+Fields received:
+  title: 'Invitation to Project Management Seminar'
+  sender: 'Operations Management Department'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Treasurer's Office
+  file_path: uploads/documents/DOC-0020-1778697116-6a04c39c12bb5.webp
+
+=== 2026-05-14 02:32:24 ===
+Fields received:
+  title: 'Entrepreneurship and Startup Seminar Invitation'
+  sender: 'Business Development Office'
+  classification: 'Invitation'
+  sub_classification: 'Meeting Invitation'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Treasurer's Office
+  file_path: uploads/documents/DOC-0020-1778697144-6a04c3b87eed1.webp
+
+=== 2026-05-14 02:33:00 ===
+Fields received:
+  title: 'Invitation to Human Resource Management Seminar'
+  sender: 'Human Resources Division'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Treasurer's Office
+  file_path: uploads/documents/DOC-0020-1778697180-6a04c3dc863e0.webp
+
+=== 2026-05-14 02:39:09 ===
+Fields received:
+  title: 'Data Privacy and Compliance Seminar Invitation'
+  sender: 'Compliance and Legal Affairs Office'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Mayor's Office
+  file_path: uploads/documents/DOC-0021-1778697549-6a04c54d8fc67.jpg
+
+=== 2026-05-14 02:41:32 ===
+Fields received:
+  title: 'Invitation to Educational Advancement Seminar'
+  sender: 'Academic Affairs Office'
+  classification: 'Invitation'
+  sub_classification: 'Meeting Invitation'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Planning and Development Office
+  file_path: uploads/documents/DOC-0022-1778697692-6a04c5dcc87a5.webp
+
+=== 2026-05-14 02:43:56 ===
+Fields received:
+  title: 'Team Building and Collaboration Workshop Invitation'
+  sender: 'Organizational Development Department'
+  classification: 'Travel-Related Communication'
+  sub_classification: 'Field Visit/Inspection'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Accounting Office
+  file_path: uploads/documents/DOC-0023-1778697836-6a04c66c2ca5c.jpg

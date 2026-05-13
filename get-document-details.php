@@ -23,9 +23,27 @@ if ($doc_id <= 0 && $assignment_id <= 0) {
 }
 
 $user_id = intval($_SESSION['user_id']);
+$user_role = $_SESSION['role'] ?? 'Department Staff';
 require_once 'config/db_connect.php';
 
 $document = null;
+
+$hasReturnedAt = false;
+$returnedAtCheck = $conn->query("SHOW COLUMNS FROM document_assignments LIKE 'returned_at'");
+if ($returnedAtCheck && $returnedAtCheck->num_rows > 0) {
+    $hasReturnedAt = true;
+}
+
+function buildReturnTimestampExpr($tableAlias = 'da')
+{
+    global $hasReturnedAt;
+
+    if ($hasReturnedAt) {
+        return "COALESCE({$tableAlias}.returned_at, (SELECT MAX(n.created_at) FROM notifications n WHERE n.assignment_id = {$tableAlias}.id AND n.new_status = 'Returned'), {$tableAlias}.completed_at, {$tableAlias}.received_at, {$tableAlias}.assigned_at, d.date_sent)";
+    }
+
+    return "COALESCE((SELECT MAX(n.created_at) FROM notifications n WHERE n.assignment_id = {$tableAlias}.id AND n.new_status = 'Returned'), {$tableAlias}.completed_at, {$tableAlias}.received_at, {$tableAlias}.assigned_at, d.date_sent)";
+}
 
 function parseCompletionFilePayload($payload)
 {
@@ -93,13 +111,19 @@ if ($assignment_id > 0) {
             da.status as assignment_status,
             da.assigned_at,
             da.completed_at,
+            " . buildReturnTimestampExpr('da') . " AS returned_at,
+            (SELECT MAX(n.created_at) FROM notifications n WHERE n.assignment_id = da.id AND n.new_status = 'Returned') AS rejection_at,
             da.completion_file,
             u.first_name as sender_first_name,
-            u.last_name as sender_last_name
+            u.last_name as sender_last_name,
+            u_assigner.first_name as assigned_by_first,
+            u_assigner.last_name as assigned_by_last,
+            u_assigner.position as assigned_by_position
         FROM documents d
         JOIN document_assignments da ON d.id = da.document_id
         LEFT JOIN users u ON d.sender_id = u.id
-        WHERE da.id = ? AND (da.assigned_to = ? OR da.assigned_by = ?)
+        LEFT JOIN users u_assigner ON da.assigned_by = u_assigner.id
+        WHERE da.id = ? AND (da.assigned_to = ? OR da.assigned_by = ? OR ? IN ('Record Officer','Mayor','Super Admin'))
         LIMIT 1";
     
     $stmt = $conn->prepare($sql);
@@ -110,7 +134,7 @@ if ($assignment_id > 0) {
         exit;
     }
     
-    $stmt->bind_param('iii', $assignment_id, $user_id, $user_id);
+    $stmt->bind_param('iiis', $assignment_id, $user_id, $user_id, $user_role);
     if (!$stmt->execute()) {
         http_response_code(500);
         echo json_encode(['success' => false, 'message' => 'Execution error: ' . $stmt->error]);
@@ -150,9 +174,14 @@ if ($assignment_id > 0) {
                 NULL as assignment_status,
                 NULL as assigned_at,
                 NULL as completed_at,
+                NULL as returned_at,
+                NULL as rejection_at,
                 NULL as completion_file,
                 u.first_name as sender_first_name,
-                u.last_name as sender_last_name
+                u.last_name as sender_last_name,
+                NULL as assigned_by_first,
+                NULL as assigned_by_last,
+                NULL as assigned_by_position
             FROM documents d
             LEFT JOIN users u ON d.sender_id = u.id
             WHERE d.id = ?
@@ -206,6 +235,11 @@ if ($document === null && $doc_id > 0) {
             d.priority,
             d.deadline,
             d.file_path
+            ,NULL as returned_at
+            ,NULL as rejection_at
+            ,NULL as assigned_by_first
+            ,NULL as assigned_by_last
+            ,NULL as assigned_by_position
         FROM documents d
         WHERE d.id = ? AND d.created_by = ?";
 
@@ -247,6 +281,11 @@ if ($document === null && $doc_id > 0) {
             d.priority,
             d.deadline,
             d.file_path
+            ,NULL as returned_at
+            ,NULL as rejection_at
+            ,NULL as assigned_by_first
+            ,NULL as assigned_by_last
+            ,NULL as assigned_by_position
             FROM documents d
             JOIN document_assignments da ON d.id = da.document_id
             WHERE d.id = ? AND (da.assigned_to = ? OR da.assigned_by = ? OR d.created_by = ?)";

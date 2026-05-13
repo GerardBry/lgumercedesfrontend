@@ -691,20 +691,18 @@ $conn->close();
                             <span>Accounts</span>
                         </a>
                     </li>
+                                  <li>
+                        <a href="documents.php" class="admin-nav-item">
+                            <i class="fas fa-folder-open"></i>
+                            <span>Documents</span>
+                        </a>
+                    </li>
                     <li>
-                        <a href="#" class="admin-nav-item" onclick="alert('Reports and analytics coming soon')">
+                        <a href="report.php" class="admin-nav-item">
                             <i class="fas fa-chart-bar"></i>
-                            <span>Reports & Analytics</span>
+                            <span>Reports</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="#" class="admin-nav-item" onclick="alert('Document status monitoring coming soon')">
-                            <i class="fas fa-clipboard-list"></i>
-                            <span>Document Status</span>
-                        </a>
-                    </li>
-                    <li class="divider"></li>
-                </ul>
             </nav>
 
             <div class="admin-sidebar-footer">

@@ -186,6 +186,9 @@ function getActionBadge($action) {
             display: flex;
             min-height: 100vh;
             background-color: var(--bg-light);
+            --primary-color: #66BB6A;
+            --primary-light: #81C784;
+            --primary-dark: #4CAF50;
         }
 
         .admin-sidebar {
@@ -221,7 +224,7 @@ function getActionBadge($action) {
         .admin-logo-icon {
             width: 44px;
             height: 44px;
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             border-radius: var(--radius-md);
             display: flex;
             align-items: center;
@@ -278,9 +281,9 @@ function getActionBadge($action) {
         }
 
         .admin-nav-item.active {
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             color: #ffffff;
-            box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(102, 187, 106, 0.32);
         }
 
         .admin-sidebar-footer {
@@ -302,7 +305,7 @@ function getActionBadge($action) {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -441,12 +444,26 @@ function getActionBadge($action) {
         }
 
         .btn-primary {
-            background-color: var(--primary-color);
+            background-color: #66BB6A;
             color: #ffffff;
         }
 
         .btn-primary:hover {
-            background-color: var(--primary-dark);
+            background-color: #57A95C;
+        }
+
+        .admin-main-content .btn-search,
+        .admin-main-content .btn-primary {
+            background: linear-gradient(135deg, #66BB6A, #81C784);
+            border-color: #66BB6A;
+            color: #ffffff;
+        }
+
+        .admin-main-content .btn-search:hover,
+        .admin-main-content .btn-primary:hover {
+            background: linear-gradient(135deg, #57A95C, #72B875);
+            border-color: #57A95C;
+            color: #ffffff;
         }
 
         .btn-secondary {
@@ -513,8 +530,8 @@ function getActionBadge($action) {
             gap: 4px;
         }
 
-        .user-name { font-weight: 600; }
-        .user-role { font-size: 12px; color: var(--text-light); }
+        .user-name { font-weight: 600; color: #000; }
+        .user-role { font-size: 12px; color: #333; }
 
         .timestamp {
             font-size: 13px;
@@ -619,11 +636,6 @@ function getActionBadge($action) {
                         <i class="fas fa-history"></i>
                         <span>Audit Logs</span>
                     </a></li>
-                    <li class="divider"></li>
-                    <li><a href="trackdocument.php" class="admin-nav-item" title="Track Document">
-                        <i class="fas fa-map-location-dot"></i>
-                        <span>Track Document</span>
-                    </a></li>
                 </ul>
             </div>
 
@@ -709,7 +721,6 @@ function getActionBadge($action) {
                                 <th>User</th>
                                 <th>Timestamp</th>
                                 <th>IP Address</th>
-                                <th>Details</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -746,16 +757,11 @@ function getActionBadge($action) {
                                                 <?php echo htmlspecialchars($log['ip_address'] ?? 'Unknown'); ?>
                                             </div>
                                         </td>
-                                        <td>
-                                            <div class="details-text" title="<?php echo htmlspecialchars($log['details']); ?>">
-                                                <?php echo htmlspecialchars($log['details'] ?? '-'); ?>
-                                            </div>
-                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="5">
+                                    <td colspan="4">
                                         <div class="empty-state">
                                             <i class="fas fa-inbox"></i>
                                             <p>No audit logs found</p>

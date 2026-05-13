@@ -99,7 +99,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Travel Request Entry - LGU Mercedes Document Tracking System</title>
+    <title>Incoming Documents - LGU Mercedes Document Tracking System</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -129,16 +129,10 @@ $conn->close();
                             <span>Track Documents</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="documententry.php" class="nav-item active" data-page="entry">
-                            <i class="fas fa-file-upload"></i>
-                            <span>Documents</span>
-                        </a>
-                    </li>
                     <li class="divider"></li>
-                    <li>
-                        <a href="incoming.php" class="nav-item" data-page="incoming">
-                            <i class="fas fa-inbox"></i>
+                                        <li>    
+                        <a href="documententry.php" class="nav-item" data-page="entry">
+                            <i class="fas fa-file-upload"></i>
                             <span>Incoming</span>
                         </a>
                     </li>
@@ -160,12 +154,13 @@ $conn->close();
                             <span>Finished</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="archive.php" class="nav-item" data-page="archive">
-                            <i class="fas fa-archive"></i>
-                            <span>Archive</span>
+                                       <li>
+                        <a href="incoming.php" class="nav-item" data-page="incoming">
+                            <div>
+                                <i class="fas fa-inbox"></i>
+                                <span>Returned</span>
+                            </div>
                         </a>
-                    </li>
                                         <li>
                         <a href="reports.php" class="nav-item" data-page="reports">
                             <div>
@@ -211,7 +206,7 @@ $conn->close();
                 <div class="page-header">
                     <div class="header-with-button">
                         <div>
-                            <h2>Documents</h2>
+                            <h2>Incoming Documents</h2>
                             <p>Add incoming documents</p>
                         </div>
                         <button class="btn btn-primary" onclick="openCreateDocumentModal()">
@@ -391,7 +386,6 @@ $conn->close();
                                         <option value="Letter">Letter</option>
                                         <option value="Invitation">Invitation</option>
                                         <option value="Travel-Related Communication">Travel-Related Communication</option>
-                                        <option value="Indorsement">Indorsement</option>
                                     </select>
                                 </div>
 

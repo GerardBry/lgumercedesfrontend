@@ -185,6 +185,9 @@ $conn->close();
             display: flex;
             min-height: 100vh;
             background-color: var(--bg-light);
+            --primary-color: #66BB6A;
+            --primary-light: #81C784;
+            --primary-dark: #4CAF50;
         }
 
         .admin-sidebar {
@@ -213,7 +216,7 @@ $conn->close();
         .admin-logo-icon {
             width: 44px;
             height: 44px;
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             border-radius: var(--radius-md);
             display: flex;
             align-items: center;
@@ -276,9 +279,9 @@ $conn->close();
         }
 
         .admin-nav-item.active {
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             color: #ffffff;
-            box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(102, 187, 106, 0.32);
         }
 
         .admin-sidebar-footer {
@@ -300,7 +303,7 @@ $conn->close();
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -439,15 +442,15 @@ $conn->close();
         }
 
         .btn-primary {
-            background-color: var(--primary-color);
+            background-color: #66BB6A;
             color: #ffffff;
-            box-shadow: 0 2px 8px rgba(255, 149, 0, 0.3);
+            box-shadow: 0 2px 8px rgba(102, 187, 106, 0.3);
         }
 
         .btn-primary:hover {
-            background-color: var(--primary-dark);
+            background-color: #57A95C;
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 149, 0, 0.4);
+            box-shadow: 0 4px 12px rgba(102, 187, 106, 0.4);
         }
 
         .btn-secondary {
@@ -483,7 +486,7 @@ $conn->close();
         }
 
         .btn-search {
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             color: white;
             border: none;
             padding: 10px 24px;
@@ -500,7 +503,7 @@ $conn->close();
 
         .btn-search:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(102, 187, 106, 0.3);
         }
 
         .btn-reset {
@@ -817,11 +820,6 @@ $conn->close();
                     <li><a href="audit-logs.php" class="admin-nav-item" title="Audit Logs">
                         <i class="fas fa-history"></i>
                         <span>Audit Logs</span>
-                    </a></li>
-                    <li class="divider"></li>
-                    <li><a href="trackdocument.php" class="admin-nav-item" title="Track Document">
-                        <i class="fas fa-map-location-dot"></i>
-                        <span>Track Document</span>
                     </a></li>
                 </ul>
             </div>

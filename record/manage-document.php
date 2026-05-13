@@ -65,12 +65,18 @@ if (!$status_filter) {
         d.document_type,
         d.description,
         d.date_sent,
+        d.date_received,
+        d.classification,
+        d.sub_classification,
+        d.priority,
+        d.file_path,
         d.status as document_status,
         da.status as assignment_status,
         da.office_department,
         da.assigned_at,
         da.received_at,
         da.completed_at,
+        da.completion_file,
         u_creator.first_name as creator_first_name,
         u_creator.last_name as creator_last_name,
         u_assigned.first_name as assigned_to_first_name,
@@ -96,12 +102,18 @@ if (!$status_filter) {
         d.document_type,
         d.description,
         d.date_sent,
+        d.date_received,
+        d.classification,
+        d.sub_classification,
+        d.priority,
+        d.file_path,
         d.status as document_status,
         da.status as assignment_status,
         da.office_department,
         da.assigned_at,
         da.received_at,
         da.completed_at,
+        da.completion_file,
         u_creator.first_name as creator_first_name,
         u_creator.last_name as creator_last_name,
         u_assigned.first_name as assigned_to_first_name,
@@ -510,6 +522,83 @@ $conn->close();
             margin-bottom: 16px;
             opacity: 0.5;
         }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            overflow: auto;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .modal-large {
+            max-width: 900px;
+        }
+
+        .modal-header {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .modal-close:hover {
+            color: #000;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            background-color: #f5f5f5;
+            padding: 16px 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            border-radius: 0 0 12px 12px;
+        }
     </style>
 </head>
 <body>
@@ -635,10 +724,16 @@ $conn->close();
                             <tbody>
                                 <?php foreach ($documents as $doc): ?>
                                     <?php
-                                        $status = $doc['assignment_status'];
+                                        // Use assignment status, fallback to document status, default to Pending
+                                        // Check for non-empty values, not just null
+                                        $status = (!empty($doc['assignment_status']) ? $doc['assignment_status'] : 
+                                                  (!empty($doc['document_status']) ? $doc['document_status'] : 'Pending'));
                                         $badge_class = 'badge-pending';
-                                        if ($status === 'Completed') $badge_class = 'badge-completed';
-                                        elseif ($status === 'Returned') $badge_class = 'badge-returned';
+                                        if (in_array($status, ['Completed', 'Approved'])) {
+                                            $badge_class = 'badge-completed';
+                                        } elseif ($status === 'Returned') {
+                                            $badge_class = 'badge-returned';
+                                        }
 
                                         $senderName = trim(($doc['creator_first_name'] ?? '') . ' ' . ($doc['creator_last_name'] ?? '')) ?: ($doc['sender_name'] ?? '-');
                                         $descriptionShort = isset($doc['description']) ? (strlen($doc['description']) > 80 ? substr($doc['description'],0,80) . '...' : $doc['description']) : '-';
@@ -658,7 +753,7 @@ $conn->close();
                                         <td><span class="badge badge-primary"><?php echo htmlspecialchars($priority); ?></span></td>
                                         <td><span class="badge <?php echo $badge_class; ?>"><?php echo htmlspecialchars($status); ?></span></td>
                                         <td>
-                                            <button class="btn btn-sm btn-info" onclick="viewRecordDocument(<?php echo intval($doc['assignment_id']); ?>)">
+                                            <button class="btn btn-sm btn-info" onclick="viewRecordDocument(<?php echo intval($doc['assignment_id'] ?? 0); ?>, <?php echo intval($doc['document_id'] ?? 0); ?>)">
                                                 <i class="fas fa-eye"></i> View
                                             </button>
                                         </td>
@@ -678,7 +773,7 @@ $conn->close();
     </div>
 
             <!-- View Record Document Modal -->
-            <div id="viewRecordModal" class="modal" style="background-color: rgba(0, 0, 0, 0.5); display: none;" onclick="if(event.target === this) closeRecordModal()">
+            <div id="viewRecordModal" class="modal" style="background-color: rgba(0, 0, 0, 0.5);" onclick="if(event.target === this) closeRecordModal()">
                 <div class="modal-content modal-large">
                     <div class="modal-header">
                         <h3>Document Details</h3>
@@ -728,7 +823,7 @@ $conn->close();
                         <div class="detail-row" style="margin-bottom: 16px;">
                             <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Attached File</label>
                             <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                                <span style="font-size: 14px; color: #333; flex: 1;" id="viewRecordFileName">No attachment</span>
+                                <button type="button" id="viewRecordFileName" onclick="viewRecordFile()" style="flex: 1; border: none; background: transparent; padding: 0; text-align: left; font-size: 14px; color: #0d6efd; text-decoration: underline; cursor: pointer;">No attachment</button>
                                 <button type="button" class="btn btn-sm btn-warning" onclick="viewRecordFile()" id="viewRecordFileBtn" style="display: none;">
                                     <i class="fas fa-eye"></i> View
                                 </button>
@@ -738,11 +833,38 @@ $conn->close();
                             </div>
                         </div>
 
+                        <!-- Travel Requests Section -->
+                        <div id="travelRequestsSectionRecord" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid var(--primary-color);">
+                            <h4 style="margin-bottom: 16px; font-size: 14px; font-weight: 600; color: var(--primary-color);">
+                                <i class="fas fa-plane"></i> Submitted Travel Requests
+                            </h4>
+                            <div id="travelRequestsListRecord" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                        </div>
+
+                        <!-- Uploaded Files Section -->
                         <div id="uploadedFilesSectionRecord" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid #28a745;">
                             <h4 style="margin-bottom: 16px; font-size: 14px; font-weight: 600; color: #28a745;">
                                 <i class="fas fa-file-upload"></i> Uploaded Pictures/Files
                             </h4>
                             <div id="uploadedFilesListRecord" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                        </div>
+
+                        <div id="rejectionDetailsSection" style="display: none; margin-bottom: 16px; background: #fff4f4; border: 1px solid #f4cccc; border-radius: 8px; padding: 12px 14px;">
+                            <h4 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 700; color: #b71c1c;">Rejection Details</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                                <div>
+                                    <label style="font-weight: 600; color: #8a3b3b; font-size: 12px; margin-bottom: 4px; display: block;">Rejected By</label>
+                                    <span id="viewRejectedBy" style="font-size: 14px; color: #333;">-</span>
+                                </div>
+                                <div>
+                                    <label style="font-weight: 600; color: #8a3b3b; font-size: 12px; margin-bottom: 4px; display: block;">Rejected At</label>
+                                    <span id="viewRejectedAt" style="font-size: 14px; color: #333;">-</span>
+                                </div>
+                            </div>
+                            <div>
+                                <label style="font-weight: 600; color: #8a3b3b; font-size: 12px; margin-bottom: 4px; display: block;">Reason</label>
+                                <span id="viewRejectedReason" style="font-size: 14px; color: #333; line-height: 1.6; display: block;">-</span>
+                            </div>
                         </div>
                     </div>
 
@@ -751,58 +873,148 @@ $conn->close();
                     </div>
                 </div>
             </div>
+        <div id="recordFileViewerModal" class="modal" style="background-color: rgba(0, 0, 0, 0.5);" onclick="if(event.target === this) closeRecordFileViewerModal()">
+            <div class="modal-content" style="max-width: 72vw; width: min(980px, 92vw); max-height: 90vh; overflow: hidden;">
+                <div class="modal-header">
+                    <h3 id="recordFileViewerTitle">Attached File Preview</h3>
+                    <button class="modal-close" onclick="closeRecordFileViewerModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body" style="padding: 18px; background: #f8f9fa; display: flex; align-items: center; justify-content: center; overflow: hidden; min-height: 72vh;">
+                    <img id="recordFileViewerImage" alt="Attached file preview" style="max-width: 100%; max-height: 72vh; width: auto; height: auto; object-fit: contain; display: none;">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-info" onclick="downloadRecordDocument()">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="closeRecordFileViewerModal()">Close</button>
+                </div>
+            </div>
+        </div>
         </body>
         <script>
             let currentRecordDocument = null;
+            let currentRecordAttachment = {
+                type: '',
+                path: '',
+                name: '',
+                assignmentId: 0
+            };
 
-            function viewRecordDocument(assignmentId) {
+            function extractReturnReason(notesText) {
+                const text = String(notesText || '').trim();
+                if (!text) return '-';
+
+                const returnReasonMatch = text.match(/Return\s+Reason\s*:\s*([\s\S]+)/i);
+                if (returnReasonMatch && returnReasonMatch[1] && returnReasonMatch[1].trim()) {
+                    return returnReasonMatch[1].trim();
+                }
+
+                const reasonMatch = text.match(/Reason\s*:\s*([\s\S]+)/i);
+                if (reasonMatch && reasonMatch[1] && reasonMatch[1].trim()) {
+                    return reasonMatch[1].trim();
+                }
+
+                return text;
+            }
+
+            function viewRecordDocument(assignmentId, documentId) {
                 currentRecordDocument = null;
-                // Fetch details
-                fetch('../get-document-details.php?assignment_id=' + encodeURIComponent(assignmentId))
-                    .then(res => res.json())
-                    .then(data => {
-                        if (!data.success) {
-                            alert(data.message || 'Failed to load document');
-                            return;
-                        }
-                        const d = data.document;
-                        currentRecordDocument = d;
-                        document.getElementById('viewRecordDocumentID').textContent = d.tracking_number || d.id || '';
-                        document.getElementById('viewRecordTitle').textContent = d.title || '-';
-                        document.getElementById('viewRecordSender').textContent = d.sender_name || (d.sender_first_name ? (d.sender_first_name + ' ' + (d.sender_last_name||'')) : '-');
-                        document.getElementById('viewRecordDateReceived').textContent = d.date_received || d.date_sent || '-';
-                        document.getElementById('viewRecordClassification').innerHTML = d.classification ? ('<span class="badge badge-info">' + d.classification + '</span>') : '-';
-                        document.getElementById('viewRecordSubClassification').textContent = d.sub_classification || '-';
-                        document.getElementById('viewRecordPrioritization').innerHTML = d.priority ? ('<span class="badge badge-primary">' + d.priority + '</span>') : '<span class="badge badge-primary">Normal</span>';
-                        document.getElementById('viewRecordDescription').textContent = d.description || '-';
+                const basePath = '..';
+                
+                // Try assignment-based fetch first, then fallback to document-id fetch
+                const tryAssignment = parseInt(assignmentId) > 0;
+                const assignmentUrl = basePath + '/get-document-details.php?assignment_id=' + encodeURIComponent(assignmentId);
+                const docUrl = basePath + '/get-document-details.php?id=' + encodeURIComponent(documentId);
 
-                        // Attached completion file
-                        const fileNameEl = document.getElementById('viewRecordFileName');
-                        const viewBtn = document.getElementById('viewRecordFileBtn');
-                        const downloadBtn = document.getElementById('downloadRecordBtn');
+                const fetchAndShow = (url) => {
+                    return fetch(url)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (!data.success) {
+                                return Promise.reject(data.message || 'Failed to load document');
+                            }
+                            return data.document;
+                        });
+                };
 
-                        if (d.has_completion_file || d.file_path) {
-                            const fname = d.completion_file_name || d.file_path || 'attachment';
-                            fileNameEl.textContent = fname;
-                            viewBtn.style.display = '';
-                            downloadBtn.style.display = '';
-                        } else {
-                            fileNameEl.textContent = 'No attachment';
-                            viewBtn.style.display = 'none';
-                            downloadBtn.style.display = 'none';
-                        }
+                const primary = tryAssignment ? fetchAndShow(assignmentUrl) : fetchAndShow(docUrl);
 
-                        // Load uploaded files if any
-                        loadRecordUploadedFiles(assignmentId);
+                primary.catch(() => {
+                    if (parseInt(documentId) > 0 && tryAssignment) {
+                        return fetchAndShow(docUrl);
+                    }
+                    return Promise.reject('Document not found');
+                })
+                .then(d => {
+                    currentRecordDocument = d;
+                    const attachmentPath = d.file_path || d.completion_file_path || '';
+                    const attachmentName = d.completion_file_name || (attachmentPath ? attachmentPath.split('/').pop() : 'attachment');
+                    currentRecordAttachment = {
+                        type: d.file_path ? 'path' : (d.completion_file_path ? 'assignment' : ''),
+                        path: attachmentPath,
+                        name: attachmentName,
+                        assignmentId: d.assignment_id || 0
+                    };
 
-                        // Show modal
-                        const modal = document.getElementById('viewRecordModal');
-                        modal.style.display = 'block';
-                    })
-                    .catch(err => {
-                        console.error(err);
-                        alert('Error loading document');
-                    });
+                    document.getElementById('viewRecordDocumentID').textContent = d.tracking_number || d.id || '';
+                    document.getElementById('viewRecordTitle').textContent = d.title || '-';
+                    document.getElementById('viewRecordSender').textContent = d.sender_name || (d.sender_first_name ? (d.sender_first_name + ' ' + (d.sender_last_name||'')) : '-');
+                    document.getElementById('viewRecordDateReceived').textContent = d.date_received || d.date_sent || '-';
+                    document.getElementById('viewRecordClassification').innerHTML = d.classification ? ('<span class="badge badge-info">' + d.classification + '</span>') : '-';
+                    document.getElementById('viewRecordSubClassification').textContent = d.sub_classification || '-';
+                    document.getElementById('viewRecordPrioritization').innerHTML = d.priority ? ('<span class="badge badge-primary">' + d.priority + '</span>') : '<span class="badge badge-primary">Normal</span>';
+                    document.getElementById('viewRecordDescription').textContent = d.description || '-';
+
+                    const rejectionSection = document.getElementById('rejectionDetailsSection');
+                    if ((d.assignment_status || d.document_status || '').toLowerCase() === 'returned') {
+                        const rejectedByName = ((d.assigned_by_first || '') + ' ' + (d.assigned_by_last || '')).trim();
+                        const rejectedByPosition = (d.assigned_by_position || '').trim();
+                        const rejectedBy = rejectedByPosition
+                            ? (rejectedByName ? rejectedByName + ' (' + rejectedByPosition + ')' : rejectedByPosition)
+                            : (rejectedByName || '-');
+                        const rejectedAtRaw = d.rejection_at || d.returned_at || d.completed_at || null;
+
+                        document.getElementById('viewRejectedBy').textContent = rejectedBy;
+                        document.getElementById('viewRejectedAt').textContent = rejectedAtRaw ? new Date(rejectedAtRaw).toLocaleString() : '-';
+                        document.getElementById('viewRejectedReason').textContent = extractReturnReason(d.assignment_notes || d.notes || '');
+                        rejectionSection.style.display = 'block';
+                    } else {
+                        rejectionSection.style.display = 'none';
+                    }
+
+                    const fileNameEl = document.getElementById('viewRecordFileName');
+                    const viewBtn = document.getElementById('viewRecordFileBtn');
+                    const downloadBtn = document.getElementById('downloadRecordBtn');
+
+                    if (attachmentPath) {
+                        fileNameEl.textContent = attachmentName;
+                        fileNameEl.style.color = '#0d6efd';
+                        fileNameEl.style.textDecoration = 'underline';
+                        fileNameEl.style.cursor = 'pointer';
+                        fileNameEl.disabled = false;
+                        viewBtn.style.display = '';
+                        downloadBtn.style.display = '';
+                    } else {
+                        fileNameEl.textContent = 'No attachment';
+                        fileNameEl.style.color = '#333';
+                        fileNameEl.style.textDecoration = 'none';
+                        fileNameEl.style.cursor = 'default';
+                        fileNameEl.disabled = true;
+                        viewBtn.style.display = 'none';
+                        downloadBtn.style.display = 'none';
+                    }
+
+                    loadRecordUploadedFiles(assignmentId);
+                    loadRecordTravelRequests(d.id || currentRecordDocument.document_id);
+                    const modal = document.getElementById('viewRecordModal');
+                    modal.style.display = 'flex';
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert(typeof err === 'string' ? err : 'Error loading document');
+                });
             }
 
             function closeRecordModal() {
@@ -811,21 +1023,57 @@ $conn->close();
             }
 
             function viewRecordFile() {
-                if (!currentRecordDocument) return;
-                // Open file viewer - use completion file endpoint
-                const assignmentId = currentRecordDocument.assignment_id || currentRecordDocument.id;
-                window.open('../get-document-file.php?assignment_id=' + encodeURIComponent(assignmentId), '_blank');
+                if (!currentRecordDocument || !currentRecordAttachment.path) return;
+
+                const image = document.getElementById('recordFileViewerImage');
+                const title = document.getElementById('recordFileViewerTitle');
+                const basePath = '..';
+                const fileName = currentRecordAttachment.name || 'Attached File';
+                const fileExt = fileName.split('.').pop().toLowerCase();
+                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'].includes(fileExt);
+
+                if (!isImage) {
+                    window.open(
+                        currentRecordAttachment.type === 'assignment'
+                            ? (basePath + '/get-document-file.php?assignment_id=' + encodeURIComponent(currentRecordAttachment.assignmentId || currentRecordDocument.assignment_id || currentRecordDocument.id))
+                            : (basePath + '/view-document-file.php?path=' + encodeURIComponent(currentRecordAttachment.path)),
+                        '_blank'
+                    );
+                    return;
+                }
+
+                const imageUrl = currentRecordAttachment.type === 'assignment'
+                    ? (basePath + '/get-document-file.php?assignment_id=' + encodeURIComponent(currentRecordAttachment.assignmentId || currentRecordDocument.assignment_id || currentRecordDocument.id))
+                    : (basePath + '/view-document-file.php?path=' + encodeURIComponent(currentRecordAttachment.path));
+
+                image.src = imageUrl;
+                image.style.display = 'block';
+                title.textContent = 'Viewing: ' + fileName;
+                document.getElementById('recordFileViewerModal').style.display = 'flex';
             }
 
             function downloadRecordDocument() {
-                if (!currentRecordDocument) return;
-                const assignmentId = currentRecordDocument.assignment_id || currentRecordDocument.id;
+                if (!currentRecordDocument || !currentRecordAttachment.path) return;
+
+                const basePath = '..';
                 const link = document.createElement('a');
-                link.href = '../get-document-file.php?assignment_id=' + encodeURIComponent(assignmentId);
-                link.target = '_blank';
+                if (currentRecordAttachment.type === 'assignment') {
+                    link.href = basePath + '/get-document-file.php?assignment_id=' + encodeURIComponent(currentRecordAttachment.assignmentId || currentRecordDocument.assignment_id || currentRecordDocument.id);
+                } else {
+                    link.href = basePath + '/' + currentRecordAttachment.path;
+                }
+                link.download = currentRecordAttachment.name || 'attachment';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
+            }
+
+            function closeRecordFileViewerModal() {
+                const modal = document.getElementById('recordFileViewerModal');
+                const image = document.getElementById('recordFileViewerImage');
+                modal.style.display = 'none';
+                image.src = '';
+                image.style.display = 'none';
             }
 
             function loadRecordUploadedFiles(assignmentId) {
@@ -834,38 +1082,190 @@ $conn->close();
                 listEl.innerHTML = '';
                 section.style.display = 'none';
 
-                fetch('../administrative/get-document-uploads.php?assignment_id=' + encodeURIComponent(assignmentId))
+                const basePath = '..';
+                const uploadsUrl = basePath + '/administrative/get-document-uploads.php?assignment_id=' + encodeURIComponent(assignmentId);
+
+                fetch(uploadsUrl)
                     .then(res => res.json())
                     .then(data => {
                         if (!data.success) return;
                         const uploads = data.uploads || [];
                         if (uploads.length === 0) return;
-                        section.style.display = '';
+                        section.style.display = 'block';
                         uploads.forEach(u => {
                             const row = document.createElement('div');
-                            row.style.display = 'flex';
-                            row.style.justifyContent = 'space-between';
-                            row.style.alignItems = 'center';
-                            row.style.gap = '12px';
-                            row.innerHTML = '<div>' + (u.notes ? ('<strong>' + (u.notes) + '</strong> - ') : '') + (u.file_path ? u.file_path.split('/').pop() : '') + '</div>';
-                            const actions = document.createElement('div');
-                            const view = document.createElement('a');
-                            view.className = 'btn btn-sm btn-warning';
-                            view.href = '../' + (u.file_path || '');
-                            view.target = '_blank';
-                            view.innerHTML = '<i class="fas fa-eye"></i> View';
-                            const dl = document.createElement('a');
-                            dl.className = 'btn btn-sm btn-info';
-                            dl.href = '../' + (u.file_path || '');
-                            dl.download = '';
-                            dl.innerHTML = '<i class="fas fa-download"></i> Download';
-                            actions.appendChild(view);
-                            actions.appendChild(dl);
-                            row.appendChild(actions);
+                            row.style.cssText = 'border: 1px solid #ddd; border-radius: 6px; padding: 12px; background-color: #f9f9f9; display: flex; gap: 12px; align-items: flex-start;';
+
+                            const fileName = u.file_path ? u.file_path.split('/').pop() : 'attachment';
+                            const ext = fileName.split('.').pop().toLowerCase();
+                            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'].includes(ext);
+                            const filePath = basePath + '/' + u.file_path;
+
+                            const iconWrap = document.createElement('div');
+                            iconWrap.style.flexShrink = '0';
+
+                            if (isImage) {
+                                const img = document.createElement('img');
+                                img.src = basePath + '/view-document-file.php?path=' + encodeURIComponent(u.file_path);
+                                img.alt = fileName;
+                                img.style.cssText = 'width: 60px; height: 60px; object-fit: cover; border-radius: 4px; cursor: pointer;';
+                                img.addEventListener('click', function () {
+                                    viewRecordUploadedFile(filePath, ext, fileName);
+                                });
+                                iconWrap.appendChild(img);
+                            } else {
+                                const icon = document.createElement('div');
+                                icon.style.cssText = 'width: 60px; height: 60px; background-color: #e0e0e0; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 24px;';
+                                icon.innerHTML = '<i class="fas fa-file"></i>';
+                                iconWrap.appendChild(icon);
+                            }
+
+                            const contentWrap = document.createElement('div');
+                            contentWrap.style.flexGrow = '1';
+
+                            const nameLine = document.createElement('div');
+                            nameLine.style.cssText = 'font-weight: 600; color: #333; margin-bottom: 4px; word-break: break-word;';
+                            nameLine.textContent = fileName;
+
+                            const metaLine = document.createElement('div');
+                            metaLine.style.cssText = 'font-size: 12px; color: #666; margin-bottom: 4px;';
+                            const uploadDate = u.uploaded_at ? new Date(u.uploaded_at).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            }) : '-';
+                            metaLine.textContent = uploadDate + ' | by ' + (u.uploaded_by || 'Administrative');
+
+                            contentWrap.appendChild(nameLine);
+                            contentWrap.appendChild(metaLine);
+
+                            if (u.notes) {
+                                const notesLine = document.createElement('div');
+                                notesLine.style.cssText = 'font-size: 12px; color: #666; margin-bottom: 8px; font-style: italic;';
+                                notesLine.textContent = '"' + u.notes + '"';
+                                contentWrap.appendChild(notesLine);
+                            }
+
+                            const buttonRow = document.createElement('div');
+                            buttonRow.style.cssText = 'display: flex; gap: 6px; flex-wrap: wrap;';
+
+                            const viewButton = document.createElement('button');
+                            viewButton.type = 'button';
+                            viewButton.className = 'btn btn-sm btn-info';
+                            viewButton.style.cssText = 'padding: 4px 8px; font-size: 11px;';
+                            viewButton.innerHTML = '<i class="fas fa-eye"></i> View';
+                            viewButton.addEventListener('click', function () {
+                                viewRecordUploadedFile(filePath, ext, fileName);
+                            });
+
+                            const downloadButton = document.createElement('button');
+                            downloadButton.type = 'button';
+                            downloadButton.className = 'btn btn-sm btn-secondary';
+                            downloadButton.style.cssText = 'padding: 4px 8px; font-size: 11px;';
+                            downloadButton.innerHTML = '<i class="fas fa-download"></i> Download';
+                            downloadButton.addEventListener('click', function () {
+                                downloadRecordFile(filePath, fileName);
+                            });
+
+                            buttonRow.appendChild(viewButton);
+                            buttonRow.appendChild(downloadButton);
+                            contentWrap.appendChild(buttonRow);
+
+                            row.appendChild(iconWrap);
+                            row.appendChild(contentWrap);
                             listEl.appendChild(row);
                         });
                     })
                     .catch(err => console.error(err));
+            }
+
+            function viewRecordUploadedFile(filePath, ext, fileName) {
+                const decodedPath = decodeURIComponent(filePath);
+                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'].includes((ext || '').toLowerCase());
+
+                if (isImage) {
+                    const image = document.getElementById('recordFileViewerImage');
+                    const title = document.getElementById('recordFileViewerTitle');
+                    image.src = '../view-document-file.php?path=' + encodeURIComponent(decodedPath.replace(/^\.\//, ''));
+                    image.style.display = 'block';
+                    title.textContent = 'Viewing: ' + (fileName || decodedPath.split('/').pop());
+                    document.getElementById('recordFileViewerModal').style.display = 'flex';
+                    return;
+                }
+
+                window.open('../view-document-file.php?path=' + encodeURIComponent(decodedPath.replace(/^\.\//, '')), '_blank');
+            }
+
+            function downloadRecordFile(filePath, fileName) {
+                const link = document.createElement('a');
+                link.href = filePath;
+                link.download = fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            function loadRecordTravelRequests(documentId) {
+                const listEl = document.getElementById('travelRequestsListRecord');
+                const section = document.getElementById('travelRequestsSectionRecord');
+                listEl.innerHTML = '';
+                section.style.display = 'none';
+
+                const basePath = '..';
+                const url = basePath + '/get-travel-requests.php?parent_document_id=' + encodeURIComponent(documentId);
+
+                const safeParseJson = (value) => {
+                    if (!value) return {};
+                    if (typeof value === 'object') return value;
+                    try {
+                        return JSON.parse(value);
+                    } catch (error) {
+                        return {};
+                    }
+                };
+
+                const escapeText = (value) => String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.success) return;
+                        const requests = data.requests || data.travel_requests || [];
+                        if (requests.length === 0) return;
+                        section.style.display = 'block';
+                        
+                        requests.forEach(req => {
+                            const row = document.createElement('div');
+                            row.style.cssText = 'border: 1px solid #ddd; border-radius: 6px; padding: 12px; background-color: #f9f9f9;';
+
+                            const requestData = safeParseJson(req.notes);
+                            const travelers = Array.isArray(requestData.travelers) ? requestData.travelers : [];
+                            const travelersHtml = travelers.map(t => {
+                                const name = escapeText(t.name || '');
+                                const position = escapeText(t.position || '');
+                                const days = t.days ? ' - ' + escapeText(t.days) + ' day(s)' : '';
+                                return '<li>' + name + ' (' + position + ')' + days + '</li>';
+                            }).join('');
+
+                            const submittedOn = req.date_sent ? new Date(req.date_sent).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                            }) : 'N/A';
+
+                            row.innerHTML = '<div style="margin-bottom: 8px;"><h5 style="margin: 0 0 4px 0; font-size: 12px; font-weight: 600; color: var(--primary-color);"><i class="fas fa-plane"></i> Travel Request: ' + escapeText(requestData.event_title || req.title || 'Untitled') + '</h5><p style="margin: 0; font-size: 11px; color: #666;">Submitted on: ' + submittedOn + '</p></div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px; font-size: 11px;"><div><span style="font-weight: 600; color: #666;">Officer:</span><br>' + escapeText(requestData.officer_name || req.sender_name || '-') + '</div><div><span style="font-weight: 600; color: #666;">Order Type:</span><br>' + escapeText(requestData.order_type || '-') + '</div><div><span style="font-weight: 600; color: #666;">Purpose:</span><br>' + escapeText(requestData.purpose_of_order || '-') + '</div><div><span style="font-weight: 600; color: #666;">Event Date:</span><br>' + (requestData.event_date ? new Date(requestData.event_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '-') + '</div></div><div style="margin-bottom: 8px; font-size: 11px;"><span style="font-weight: 600; color: #666;">Location:</span><br>' + escapeText(requestData.event_place || '-') + '</div><div style="margin-bottom: 8px; font-size: 11px;"><span style="font-weight: 600; color: #666;">Travelers:</span><ul style="margin: 4px 0 0 20px; padding: 0;">' + (travelersHtml || '<li style="color: #999;">No travelers listed</li>') + '</ul></div><div style="font-size: 11px;"><span style="font-weight: 600; color: #666;">Description:</span><br>' + escapeText(requestData.event_description || req.description || '-') + '</div>';
+                            
+                            listEl.appendChild(row);
+                        });
+                    })
+                    .catch(err => console.error('Failed to load travel requests:', err));
             }
         </script>
 </html>

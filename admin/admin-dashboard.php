@@ -46,39 +46,38 @@ if ($role_check) {
 
 // Get dashboard statistics
 $stats = [
-    'total_users' => 0,
-    'pending_users' => 0,
-    'approved_users' => 0,
-    'inactive_users' => 0,
-    'total_documents' => 0
+    'total_documents' => 0,
+    'total_accounts' => 0,
+    'active_accounts' => 0,
+    'pending_accounts' => 0
 ];
 
-// Count total users (excluding Mayor and Super Admin)
-$result = $conn->query("SELECT COUNT(*) as count FROM users WHERE role NOT IN ('Mayor', 'Super Admin')");
+// Total documents
+$result = $conn->query("SELECT COUNT(*) as count FROM documents");
 if ($result) {
     $row = $result->fetch_assoc();
-    $stats['total_users'] = $row['count'];
+    $stats['total_documents'] = $row['count'];
 }
 
-// Count pending users (excluding Mayor and Super Admin)
-$result = $conn->query("SELECT COUNT(*) as count FROM users WHERE status = 'Pending' AND role NOT IN ('Mayor', 'Super Admin')");
+// Total accounts (all users)
+$result = $conn->query("SELECT COUNT(*) as count FROM users");
 if ($result) {
     $row = $result->fetch_assoc();
-    $stats['pending_users'] = $row['count'];
+    $stats['total_accounts'] = $row['count'];
 }
 
-// Count approved users (excluding Mayor and Super Admin)
-$result = $conn->query("SELECT COUNT(*) as count FROM users WHERE status = 'Approved' AND role NOT IN ('Mayor', 'Super Admin')");
+// Count active accounts (Active status)
+$result = $conn->query("SELECT COUNT(*) as count FROM users WHERE status = 'Active'");
 if ($result) {
     $row = $result->fetch_assoc();
-    $stats['approved_users'] = $row['count'];
+    $stats['active_accounts'] = $row['count'];
 }
 
-// Count inactive users (excluding Mayor and Super Admin)
-$result = $conn->query("SELECT COUNT(*) as count FROM users WHERE status = 'Inactive' AND role NOT IN ('Mayor', 'Super Admin')");
+// Count pending accounts (Pending status)
+$result = $conn->query("SELECT COUNT(*) as count FROM users WHERE status = 'Pending'");
 if ($result) {
     $row = $result->fetch_assoc();
-    $stats['inactive_users'] = $row['count'];
+    $stats['pending_accounts'] = $row['count'];
 }
 
 // Recent login attempts
@@ -88,58 +87,6 @@ if ($result) {
     while ($row = $result->fetch_assoc()) {
         $recent_logins[] = $row;
     }
-}
-
-// Document statistics for dashboard
-$doc_stats = [
-    'total_documents' => 0,
-    'incoming' => 0,
-    'outgoing' => 0,
-    'received' => 0,
-    'finished' => 0,
-    'archive' => 0
-];
-
-// Total documents
-$result = $conn->query("SELECT COUNT(*) as count FROM documents");
-if ($result) {
-    $row = $result->fetch_assoc();
-    $doc_stats['total_documents'] = $row['count'];
-}
-
-// Incoming assignments (pending or forwarded)
-$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE status IN ('Pending','Forwarded')");
-if ($result) {
-    $row = $result->fetch_assoc();
-    $doc_stats['incoming'] = $row['count'];
-}
-
-// Outgoing assignments (active assignments created by users)
-$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE assigned_by IS NOT NULL AND status NOT IN ('Completed','Archived','Returned')");
-if ($result) {
-    $row = $result->fetch_assoc();
-    $doc_stats['outgoing'] = $row['count'];
-}
-
-// Received assignments
-$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE status = 'Received'");
-if ($result) {
-    $row = $result->fetch_assoc();
-    $doc_stats['received'] = $row['count'];
-}
-
-// Finished / Completed assignments
-$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE status = 'Completed'");
-if ($result) {
-    $row = $result->fetch_assoc();
-    $doc_stats['finished'] = $row['count'];
-}
-
-// Archived assignments
-$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE status = 'Archived'");
-if ($result) {
-    $row = $result->fetch_assoc();
-    $doc_stats['archive'] = $row['count'];
 }
 
 $conn->close();
@@ -153,11 +100,15 @@ $conn->close();
     <link rel="stylesheet" href="../styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        
         /* Admin Dashboard Specific Styles */
         .admin-container {
             display: flex;
             min-height: 100vh;
             background-color: var(--bg-light);
+            --primary-color: #66BB6A;
+            --primary-light: #81C784;
+            --primary-dark: #4CAF50;
         }
 
         .admin-sidebar {
@@ -186,7 +137,7 @@ $conn->close();
         .admin-logo-icon {
             width: 44px;
             height: 44px;
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             border-radius: var(--radius-md);
             display: flex;
             align-items: center;
@@ -249,9 +200,9 @@ $conn->close();
         }
 
         .admin-nav-item.active {
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             color: #ffffff;
-            box-shadow: 0 4px 12px rgba(255, 149, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(102, 187, 106, 0.32);
         }
 
         .admin-sidebar-footer {
@@ -273,7 +224,7 @@ $conn->close();
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+            background: linear-gradient(135deg, #66BB6A, #81C784);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -327,7 +278,7 @@ $conn->close();
         }
 
         .admin-welcome-section {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            background: linear-gradient(135deg, #66BB6A 0%, #4CAF50 100%);
             border-radius: var(--radius-lg);
             padding: 40px;
             margin-bottom: 40px;
@@ -346,6 +297,20 @@ $conn->close();
             font-size: 16px;
             color: rgba(255, 255, 255, 0.9);
             margin: 0;
+        }
+
+        .admin-main-content .btn-search,
+        .admin-main-content .btn-primary {
+            background: linear-gradient(135deg, #66BB6A, #81C784);
+            border-color: #66BB6A;
+            color: #ffffff;
+        }
+
+        .admin-main-content .btn-search:hover,
+        .admin-main-content .btn-primary:hover {
+            background: linear-gradient(135deg, #57A95C, #72B875);
+            border-color: #57A95C;
+            color: #ffffff;
         }
 
         .admin-stats-grid {
@@ -383,15 +348,15 @@ $conn->close();
         }
 
         .admin-stat-icon.stat-users {
-            background: linear-gradient(135deg, #FF9500, #FFB347);
+            background: linear-gradient(135deg, #66BB6A, #81C784);
         }
 
         .admin-stat-icon.stat-pending {
-            background: linear-gradient(135deg, #FFC107, #FFD54F);
+            background: linear-gradient(135deg, #d3df37, #ced840);
         }
 
         .admin-stat-icon.stat-approved {
-            background: linear-gradient(135deg, #28a745, #5cb85c);
+            background: linear-gradient(135deg, #66BB6A, #81C784);
         }
 
         .admin-stat-icon.stat-inactive {
@@ -407,7 +372,7 @@ $conn->close();
         }
 
         .admin-stat-icon.stat-outgoing {
-            background: linear-gradient(135deg, #4CAF50, #388E3C);
+            background: linear-gradient(135deg, #7CB342, #9CCC65);
         }
 
         .admin-stat-icon.stat-received {
@@ -549,12 +514,6 @@ $conn->close();
                         <i class="fas fa-history"></i>
                         <span>Audit Logs</span>
                     </a></li>
-                    <li class="divider"></li>
-                    <li><a href="trackdocument.php" class="admin-nav-item" title="Track Document">
-                        <i class="fas fa-map-location-dot"></i>
-                        <span>Track Document</span>
-                    </a></li>
-                </ul>
             </div>
 
             <div class="admin-sidebar-footer">
@@ -583,69 +542,39 @@ $conn->close();
 
                 <!-- Welcome Section -->
                 <div class="admin-welcome-section">
-                    <h2>Welcome, <?php echo htmlspecialchars($_SESSION['first_name']); ?>! 👋</h2>
+                    <h2>Welcome, <?php echo htmlspecialchars(trim(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? ''))); ?>! 👋</h2>
                     <p>You have full control over the system as Super Admin. Manage users, approve registrations, and monitor all activities.</p>
                 </div>
 
                 <!-- Statistics Grid -->
                 <div class="admin-stats-grid">
                     <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-total">
-                            <i class="fas fa-file-alt"></i>
+                        <div class="admin-stat-icon stat-users">
+                            <i class="fas fa-users"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Total Documents</div>
-                            <div class="admin-stat-value"><?php echo $doc_stats['total_documents']; ?></div>
+                            <div class="admin-stat-label">Total Accounts</div>
+                            <div class="admin-stat-value"><?php echo $stats['total_accounts']; ?></div>
                         </div>
                     </div>
 
                     <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-incoming">
-                            <i class="fas fa-inbox"></i>
-                        </div>
-                        <div class="admin-stat-content">
-                            <div class="admin-stat-label">Incoming</div>
-                            <div class="admin-stat-value"><?php echo $doc_stats['incoming']; ?></div>
-                        </div>
-                    </div>
-
-                    <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-outgoing">
-                            <i class="fas fa-paper-plane"></i>
-                        </div>
-                        <div class="admin-stat-content">
-                            <div class="admin-stat-label">Outgoing</div>
-                            <div class="admin-stat-value"><?php echo $doc_stats['outgoing']; ?></div>
-                        </div>
-                    </div>
-
-                    <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-received">
-                            <i class="fas fa-download"></i>
-                        </div>
-                        <div class="admin-stat-content">
-                            <div class="admin-stat-label">Received</div>
-                            <div class="admin-stat-value"><?php echo $doc_stats['received']; ?></div>
-                        </div>
-                    </div>
-
-                    <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-finished">
+                        <div class="admin-stat-icon stat-approved">
                             <i class="fas fa-check-circle"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Finished</div>
-                            <div class="admin-stat-value"><?php echo $doc_stats['finished']; ?></div>
+                            <div class="admin-stat-label">Active Accounts</div>
+                            <div class="admin-stat-value"><?php echo $stats['active_accounts']; ?></div>
                         </div>
                     </div>
 
                     <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-archive">
-                            <i class="fas fa-archive"></i>
+                        <div class="admin-stat-icon stat-pending">
+                            <i class="fas fa-clock"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Archive</div>
-                            <div class="admin-stat-value"><?php echo $doc_stats['archive']; ?></div>
+                            <div class="admin-stat-label">Pending Accounts</div>
+                            <div class="admin-stat-value"><?php echo $stats['pending_accounts']; ?></div>
                         </div>
                     </div>
                 </div>

@@ -121,7 +121,7 @@ if ($r) {
 
 // Recent activities (document_assignments)
 $recent_activities = [];
-$r = $conn->query("SELECT da.id, da.document_id, da.assigned_by, da.assigned_to, da.status, da.assigned_at, d.title, d.tracking_number, d.office_department, u_by.first_name AS assigned_by_name, u_by.last_name AS assigned_by_lname, u_to.first_name AS assigned_to_name, u_to.last_name AS assigned_to_lname FROM document_assignments da LEFT JOIN documents d ON da.document_id = d.id LEFT JOIN users u_by ON da.assigned_by = u_by.id LEFT JOIN users u_to ON da.assigned_to = u_to.id WHERE d.document_type <> 'Travel Request' AND da.status <> 'Pending' ORDER BY da.assigned_at DESC LIMIT 15");
+$r = $conn->query("SELECT da.id, da.document_id, da.assigned_by, da.assigned_to, da.status, da.assigned_at, d.title, d.tracking_number, d.office_department, u_by.first_name AS assigned_by_name, u_by.last_name AS assigned_by_lname, u_to.first_name AS assigned_to_name, u_to.last_name AS assigned_to_lname FROM document_assignments da LEFT JOIN documents d ON da.document_id = d.id LEFT JOIN users u_by ON da.assigned_by = u_by.id LEFT JOIN users u_to ON da.assigned_to = u_to.id WHERE d.document_type <> 'Travel Request' AND da.status <> 'Pending' ORDER BY da.assigned_at DESC LIMIT 3");
 if ($r) {
     while ($row = $r->fetch_assoc()) $recent_activities[] = $row;
 }
@@ -890,20 +890,12 @@ $conn->close();
                 <ul>
                     <li><a href="index.php" class="admin-nav-item"><i class="fas fa-chart-line"></i> <span>Dashboard</span></a></li>
                     <li><a href="trackdocument.php" class="admin-nav-item"><i class="fas fa-search"></i> <span>Track Documents</span></a></li>
-                    <li><a href="documententry.php" class="admin-nav-item"><i class="fas fa-file-upload"></i> <span>Documents</span></a></li>
                     <li class="divider"></li>
-                    <li><a href="incoming.php" class="admin-nav-item"><i class="fas fa-inbox"></i> <span>Incoming</span></a></li>
+                    <li><a href="documententry.php" class="admin-nav-item"><i class="fas fa-file-upload"></i> <span>Incoming</span></a></li>
                     <li><a href="outgoing.php" class="admin-nav-item"><i class="fas fa-paper-plane"></i> <span>Outgoing</span></a></li>
                     <li><a href="received.php" class="admin-nav-item"><i class="fas fa-envelope-open"></i> <span>Approved</span></a></li>
                     <li><a href="finished.php" class="admin-nav-item"><i class="fas fa-check-circle"></i> <span>Finished</span></a></li>
-                                        <li>
-                        <a href="archive.php" class="nav-item" data-page="archive">
-                            <div>
-                                <i class="fas fa-archive"></i>
-                                <span>Archive</span>
-                            </div>
-                        </a>
-                    </li>
+                    <li><a href="incoming.php" class="admin-nav-item"><i class="fas fa-inbox"></i> <span>Returned</span></a></li>
                     <li><a href="reports.php" class="admin-nav-item active"><i class="fas fa-chart-pie"></i> <span>Reports</span></a></li>
                     <li class="divider"></li>
                     <li><a href="profile.php" class="admin-nav-item"><i class="fas fa-user"></i> <span>My Profile</span></a></li>

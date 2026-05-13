@@ -17,10 +17,6 @@ const subClassifications = {
         'Official Travel Notice',
         'Field Visit/Inspection',
         'Meeting Assignment'
-    ],
-    'Indorsement': [
-        'For Information',
-        'For Action'
     ]
 };
 
