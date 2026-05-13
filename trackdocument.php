@@ -71,6 +71,27 @@ function formatNotesForDisplay($rawNotes) {
     return $rawNotes;
 }
 
+function isValidTrackDate($value) {
+    if (empty($value) || $value === '0000-00-00' || $value === '0000-00-00 00:00:00') {
+        return false;
+    }
+
+    $timestamp = strtotime($value);
+    return $timestamp !== false && $timestamp > 0;
+}
+
+function formatTrackDate($primary, $fallbacks = [], $format = 'M d, Y h:i A') {
+    $candidates = array_merge([$primary], $fallbacks);
+
+    foreach ($candidates as $candidate) {
+        if (isValidTrackDate($candidate)) {
+            return date($format, strtotime($candidate));
+        }
+    }
+
+    return '-';
+}
+
 // Fetch full user details from database
 require_once 'config/db_connect.php';
 
@@ -92,65 +113,95 @@ $tracking_code = isset($_GET['tracking_code']) ? trim($_GET['tracking_code']) : 
 $search_performed = $tracking_code !== '';
 $results = [];
 
-if ($search_performed) {
-    $sql_track = "SELECT
-            da.id as assignment_id,
-            d.id as document_id,
-            d.tracking_number,
-            d.title,
-                        (
-                                SELECT d_seed.description
-                                FROM document_assignments da_seed
-                                JOIN documents d_seed ON d_seed.id = da_seed.document_id
-                                WHERE d_seed.tracking_number = d.tracking_number
-                                    AND da_seed.assigned_to = ?
-                                    AND da_seed.assigned_by <> ?
-                                    AND COALESCE(TRIM(d_seed.description), '') <> ''
-                                ORDER BY da_seed.assigned_at ASC, da_seed.id ASC
-                                LIMIT 1
-                        ) as description,
-                        (
-                                SELECT da_seed.notes
-                                FROM document_assignments da_seed
-                                JOIN documents d_seed ON d_seed.id = da_seed.document_id
-                                WHERE d_seed.tracking_number = d.tracking_number
-                                    AND da_seed.assigned_to = ?
-                                    AND da_seed.assigned_by <> ?
-                                    AND COALESCE(TRIM(da_seed.notes), '') <> ''
-                                ORDER BY da_seed.assigned_at ASC, da_seed.id ASC
-                                LIMIT 1
-                        ) as notes_instructions,
-            d.document_type,
-            d.status as document_status,
-            d.date_sent,
-            da.status as assignment_status,
-            da.assigned_at,
-            da.received_at,
-            da.completed_at,
-            recipient.first_name as recipient_first_name,
-            recipient.last_name as recipient_last_name,
-            recipient.position as recipient_position,
-            assigner.first_name as assigner_first_name,
-            assigner.last_name as assigner_last_name
-        FROM document_assignments da
-        JOIN documents d ON da.document_id = d.id
-        LEFT JOIN users recipient ON da.assigned_to = recipient.id
-        LEFT JOIN users assigner ON da.assigned_by = assigner.id
-        WHERE d.tracking_number = ?
-          AND (da.assigned_by = ? OR da.assigned_to = ?)
-                ORDER BY COALESCE(da.completed_at, da.received_at, da.assigned_at, d.date_sent) DESC, da.id DESC
-                LIMIT 1";
+$accessCondition = "(
+      d.created_by = ?
+      OR d.sender_id = ?
+      OR EXISTS (
+        SELECT 1
+        FROM document_assignments da_access
+        WHERE da_access.document_id = d.id
+          AND (da_access.assigned_by = ? OR da_access.assigned_to = ?)
+      )
+)";
 
-    $stmt_track = $conn->prepare($sql_track);
-    if ($stmt_track) {
-        $stmt_track->bind_param("iiiisii", $user_id, $user_id, $user_id, $user_id, $tracking_code, $user_id, $user_id);
-        $stmt_track->execute();
-        $result_track = $stmt_track->get_result();
-        while ($row = $result_track->fetch_assoc()) {
-            $results[] = $row;
-        }
-        $stmt_track->close();
+$latestRowCondition = "NOT EXISTS (
+      SELECT 1
+      FROM documents d2
+      WHERE d2.tracking_number = d.tracking_number
+        AND (
+            d2.created_by = ?
+            OR d2.sender_id = ?
+            OR EXISTS (
+              SELECT 1
+              FROM document_assignments da_access2
+              WHERE da_access2.document_id = d2.id
+                AND (da_access2.assigned_by = ? OR da_access2.assigned_to = ?)
+            )
+        )
+        AND (
+            d2.date_sent > d.date_sent
+            OR (d2.date_sent = d.date_sent AND d2.id > d.id)
+        )
+)";
+
+$sql_track = "SELECT
+        d.id as document_id,
+        d.tracking_number,
+        d.title,
+        d.description,
+        d.sender_name,
+        d.date_received,
+        d.classification,
+        d.sub_classification,
+        d.priority,
+        CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM document_assignments da_returned
+                JOIN documents d_returned ON d_returned.id = da_returned.document_id
+                WHERE d_returned.tracking_number = d.tracking_number
+                  AND da_returned.status = 'Returned'
+            ) THEN 'Returned'
+            WHEN EXISTS (
+                SELECT 1
+                FROM document_assignments da_done
+                JOIN documents d_done ON d_done.id = da_done.document_id
+                WHERE d_done.tracking_number = d.tracking_number
+                  AND da_done.status = 'Completed'
+            ) THEN 'Completed'
+            ELSE d.status
+        END as document_status,
+        d.document_type,
+        d.date_sent,
+        sender.first_name as sender_first_name,
+        sender.last_name as sender_last_name,
+        sender.position as sender_position,
+        COALESCE(NULLIF(TRIM(d.sender_name), ''), NULLIF(TRIM(CONCAT(sender.first_name, ' ', sender.last_name)), ''), '-') as sender_display
+    FROM documents d
+    LEFT JOIN users sender ON d.sender_id = sender.id
+        WHERE " . $accessCondition . "
+            AND COALESCE(d.document_type, '') <> 'Travel Request'
+            AND " . $latestRowCondition;
+
+if ($search_performed) {
+    $sql_track .= " AND d.tracking_number = ?";
+}
+
+$sql_track .= " ORDER BY d.date_sent DESC, d.id DESC";
+
+$stmt_track = $conn->prepare($sql_track);
+if ($stmt_track) {
+    if ($search_performed) {
+        $stmt_track->bind_param("iiiiiiiis", $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $tracking_code);
+    } else {
+        $stmt_track->bind_param("iiiiiiii", $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id);
     }
+    $stmt_track->execute();
+    $result_track = $stmt_track->get_result();
+    while ($row = $result_track->fetch_assoc()) {
+        $results[] = $row;
+    }
+    $stmt_track->close();
 }
 
 $conn->close();
@@ -193,7 +244,7 @@ $conn->close();
                     <li>
                         <a href="documententry.php" class="nav-item" data-page="entry">
                             <i class="fas fa-file-upload"></i>
-                            <span>Document Entry</span>
+                            <span>Documents</span>
                         </a>
                     </li>
                     <li class="divider"></li>
@@ -212,13 +263,7 @@ $conn->close();
                     <li>
                         <a href="received.php" class="nav-item" data-page="received">
                             <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="returned.php" class="nav-item" data-page="returned">
-                            <i class="fas fa-undo"></i>
-                            <span>Returned</span>
+                            <span>Approved</span>
                         </a>
                     </li>
                     <li>
@@ -231,6 +276,14 @@ $conn->close();
                         <a href="archive.php" class="nav-item" data-page="archive">
                             <i class="fas fa-archive"></i>
                             <span>Archive</span>
+                        </a>
+                    </li>
+                                        <li>
+                        <a href="reports.php" class="nav-item" data-page="reports">
+                            <div>
+                                <i class="fas fa-chart-pie"></i>
+                                <span>Reports</span>
+                            </div>
                         </a>
                     </li>
                     <li class="divider"></li>
@@ -270,7 +323,7 @@ $conn->close();
                     <div class="header-with-button">
                         <div>
                             <h2>Track Documents</h2>
-                            <p>Search document status using tracking code</p>
+                            <p>Browse all routed documents and filter by tracking code</p>
                         </div>
                     </div>
                 </div>
@@ -282,7 +335,7 @@ $conn->close();
                             <input 
                                 type="text" 
                                 name="tracking_code"
-                                placeholder="Enter tracking code (e.g., LGU-2026-04-23-913)"
+                                placeholder="Enter tracking code"
                                 style="width: 100%; padding: 12px 12px 12px 40px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 14px;"
                                 value="<?php echo htmlspecialchars($tracking_code); ?>"
                                 required
@@ -292,6 +345,9 @@ $conn->close();
                             <i class="fas fa-search"></i> Track
                         </button>
                     </form>
+                            <div style="margin-top: 10px; font-size: 13px; color: var(--text-light);">
+                                Tracking code filters the list below. All documents you created or routed to are shown by default.
+                            </div>
                 </div>
 
                 <div class="table-container">
@@ -299,50 +355,70 @@ $conn->close();
                         <thead>
                             <tr>
                                 <th>Tracking Code</th>
-                                <th>Document Title</th>
+                                <th>Subject/Title</th>
                                 <th>Sender</th>
-                                <th>Document Type</th>
-                                <th>Date Sent</th>
                                 <th>Description</th>
-                                <th>Notes/Instructions</th>
+                                <th>Date Received</th>
+                                <th>Classification</th>
+                                <th>Sub-Classification</th>
+                                <th>Prioritization</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if (!$search_performed): ?>
+                            <?php if (count($results) === 0): ?>
                                 <tr>
-                                    <td colspan="9" style="text-align: center; padding: 40px; color: #999;">Enter a tracking code to search</td>
-                                </tr>
-                            <?php elseif (count($results) === 0): ?>
-                                <tr>
-                                    <td colspan="9" style="text-align: center; padding: 40px; color: #999;">No record found for the tracking code you entered</td>
+                                    <td colspan="10" style="text-align: center; padding: 40px; color: #999;">
+                                        <?php echo $search_performed ? 'No record found for the tracking code you entered' : 'No documents available'; ?>
+                                    </td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($results as $row): ?>
                                     <?php
-                                        $status = $row['assignment_status'] ?? 'Pending';
-                                        $badge_class = 'badge-info';
-                                        if ($status === 'Received') {
-                                            $badge_class = 'badge-success';
-                                        } elseif ($status === 'Pending') {
-                                            $badge_class = 'badge-warning';
-                                        } elseif ($status === 'Checking Documents') {
-                                            $badge_class = 'badge-warning';
-                                        } elseif ($status === 'Waiting For Approval by Mayor') {
+                                        $status = $row['document_status'] ?? 'Pending';
+                                        $badge_class = 'badge-warning';
+                                        if ($status === 'Returned') {
+                                            $badge_class = 'badge-danger';
+                                        } elseif ($status === 'Approved') {
                                             $badge_class = 'badge-info';
                                         } elseif ($status === 'Completed') {
                                             $badge_class = 'badge-success';
+                                        } elseif ($status === 'Rejected') {
+                                            $badge_class = 'badge-danger';
+                                        } elseif ($status === 'Archived') {
+                                            $badge_class = 'badge-secondary';
+                                        }
+
+                                        $priority = $row['priority'] ?? 'Normal';
+                                        $priority_class = 'badge-primary';
+                                        if ($priority === 'Urgent') {
+                                            $priority_class = 'badge-warning';
+                                        } elseif ($priority === 'Critical') {
+                                            $priority_class = 'badge-danger';
+                                        }
+
+                                        $sender_display = trim(($row['sender_display'] ?? '') ?: (($row['sender_first_name'] ?? '') . ' ' . ($row['sender_last_name'] ?? '')));
+                                        if ($sender_display === '') {
+                                            $sender_display = $row['sender_name'] ?? '-';
+                                        }
+
+                                        $description = trim((string)($row['description'] ?? ''));
+                                        if ($description === '') {
+                                            $description = '-';
+                                        } elseif (mb_strlen($description) > 90) {
+                                            $description = mb_substr($description, 0, 90) . '...';
                                         }
                                     ?>
                                     <tr>
                                         <td><strong><?php echo htmlspecialchars($row['tracking_number'] ?? 'N/A'); ?></strong></td>
                                         <td><?php echo htmlspecialchars($row['title'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars(trim(($row['assigner_first_name'] ?? '') . ' ' . ($row['assigner_last_name'] ?? '')) ?: '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($row['document_type'] ?? '-'); ?></td>
-                                        <td><?php echo $row['date_sent'] ? date('M d, Y h:i A', strtotime($row['date_sent'])) : '-'; ?></td>
-                                        <td><?php echo htmlspecialchars($row['description'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars(formatNotesForDisplay($row['notes_instructions'] ?? '')); ?></td>
+                                        <td><?php echo htmlspecialchars($sender_display ?: '-'); ?></td>
+                                        <td><?php echo htmlspecialchars($description); ?></td>
+                                        <td><?php echo htmlspecialchars(formatTrackDate($row['date_received'] ?? null, [$row['date_sent'] ?? null])); ?></td>
+                                        <td><?php echo !empty($row['classification']) ? '<span class="badge badge-info">' . htmlspecialchars($row['classification']) . '</span>' : '-'; ?></td>
+                                        <td><?php echo htmlspecialchars($row['sub_classification'] ?? '-'); ?></td>
+                                        <td><span class="badge <?php echo $priority_class; ?>"><?php echo htmlspecialchars($priority); ?></span></td>
                                         <td><span class="badge <?php echo $badge_class; ?>"><?php echo htmlspecialchars($status); ?></span></td>
                                         <td>
                                             <button class="btn btn-sm btn-info" onclick="viewAuditTrail('<?php echo htmlspecialchars($row['tracking_number']); ?>')">
@@ -408,10 +484,18 @@ $conn->close();
                     html += '<div style="margin-bottom: 16px;">';
                     html += '<h3 style="margin: 0 0 12px 0; font-size: 18px;">' + htmlEscape(data.document.title) + '</h3>';
                     html += '</div>';
-                    html += '<div style="margin: 8px 0; font-size: 14px;"><strong style="opacity: 0.9;">Tracking Code:</strong> <strong>' + htmlEscape(data.document.tracking_number) + '</strong></div>';
-                    html += '<div style="margin: 8px 0; font-size: 14px;"><strong style="opacity: 0.9;">Type:</strong> ' + htmlEscape(data.document.document_type) + '</div>';
-                    html += '<div style="margin: 8px 0; font-size: 14px;"><strong style="opacity: 0.9;">Status:</strong> <strong style="color: #ffeb3b; text-shadow: 0 0 2px rgba(0,0,0,0.3);">' + htmlEscape(data.document.status) + '</strong></div>';
-                    html += '<div style="margin: 8px 0; font-size: 14px;"><strong style="opacity: 0.9;">Created by:</strong> ' + htmlEscape(data.document.created_by) + ' on ' + formatDatetime(data.document.created_at) + '</div>';
+                    html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; font-size: 14px;">';
+                    html += '<div><strong style="opacity: 0.9;">Tracking Code:</strong> <strong>' + htmlEscape(data.document.tracking_number) + '</strong></div>';
+                    html += '<div><strong style="opacity: 0.9;">Sender:</strong> ' + htmlEscape(data.document.sender_name || '-') + '</div>';
+                    html += '<div><strong style="opacity: 0.9;">Date Received:</strong> ' + formatDatetime(data.document.date_received, data.document.date_sent) + '</div>';
+                    html += '<div><strong style="opacity: 0.9;">Classification:</strong> ' + htmlEscape(data.document.classification || '-') + '</div>';
+                    html += '<div><strong style="opacity: 0.9;">Sub-Classification:</strong> ' + htmlEscape(data.document.sub_classification || '-') + '</div>';
+                    html += '<div><strong style="opacity: 0.9;">Prioritization:</strong> ' + htmlEscape(data.document.priority || 'Normal') + '</div>';
+                    html += '<div><strong style="opacity: 0.9;">Created by:</strong> ' + htmlEscape(data.document.created_by) + ' on ' + formatDatetime(data.document.created_at) + '</div>';
+                    html += '</div>';
+                    if (data.document.description) {
+                        html += '<div style="margin-top: 14px; font-size: 14px;"><strong style="opacity: 0.9;">Description:</strong> ' + htmlEscape(data.document.description) + '</div>';
+                    }
                     html += '</div>';
                     
                     // Timeline Events
@@ -422,8 +506,13 @@ $conn->close();
                         data.timeline.forEach((event, index) => {
                             let bulletColor = '#6c757d';
                             if (event.event_type === 'completed') bulletColor = '#28a745';
+                            else if (event.event_type === 'uploaded') bulletColor = '#009688';
+                            else if (event.event_type === 'travel_request') bulletColor = '#1565c0';
+                            else if (event.event_type === 'approved') bulletColor = '#2e7d32';
                             else if (event.event_type === 'received') bulletColor = '#1976d2';
-                            else if (event.event_type === 'assigned') bulletColor = 'var(--primary-color)';
+                            else if (event.event_type === 'returned') bulletColor = '#d32f2f';
+                            else if (event.event_type === 'routed') bulletColor = 'var(--primary-color)';
+                            else if (event.event_type === 'created') bulletColor = '#6c757d';
                             
                             html += '<div style="position: relative; margin-bottom: 28px;">';
                             html += '<div style="position: absolute; left: -40px; top: 4px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg-white); border: 3px solid ' + bulletColor + '; z-index: 5;"></div>';
@@ -480,10 +569,12 @@ $conn->close();
         function getEventIcon(eventType) {
             const icons = {
                 'created': 'file-alt',
-                'assigned': 'share',
+                'routed': 'route',
                 'received': 'check-circle',
-                'checking_documents': 'search',
-                'waiting_approval': 'user-check',
+                'returned': 'undo',
+                'approved': 'user-check',
+                'travel_request': 'plane',
+                'uploaded': 'file-upload',
                 'completed': 'check-double',
                 'forwarded': 'arrow-right'
             };
@@ -492,33 +583,41 @@ $conn->close();
         
         function getBadgeColor(status) {
             const colors = {
-                'Created': '#6c757d',
-                'Pending': '#ffc107',
+                'Submitted': '#6c757d',
+                'Routed': 'var(--primary-color)',
                 'Received': '#1976d2',
-                'Checking Documents': '#f57c00',
-                'Waiting For Approval by Mayor': '#5e35b1',
+                'Returned': '#d32f2f',
+                'Approved': '#2e7d32',
+                'Travel Request': '#1565c0',
+                'Uploaded': '#009688',
                 'Completed': '#28a745',
                 'Forwarded': '#ff9500'
             };
             return colors[status] || '#6c757d';
         }
         
-        function formatDatetime(dateString) {
-            if (!dateString) return '-';
-            try {
+        function formatDatetime(...dateStrings) {
+            for (const dateString of dateStrings) {
+                if (!dateString || dateString === '0000-00-00' || dateString === '0000-00-00 00:00:00') {
+                    continue;
+                }
+
                 const date = new Date(dateString);
-                const options = {
+                if (Number.isNaN(date.getTime())) {
+                    continue;
+                }
+
+                return date.toLocaleString('en-US', {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit',
                     second: '2-digit'
-                };
-                return date.toLocaleString('en-US', options);
-            } catch (e) {
-                return dateString;
+                });
             }
+
+            return '-';
         }
         
         function htmlEscape(text) {

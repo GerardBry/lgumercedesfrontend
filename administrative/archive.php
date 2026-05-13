@@ -599,7 +599,7 @@ $conn->close();
         }
     </style>
 </head>
-<body>
+<body class="admin-theme">
     <div class="admin-container">
         <!-- Admin Sidebar -->
         <div class="admin-sidebar">
@@ -625,18 +625,6 @@ $conn->close();
                         </a>
                     </li>
                     <li>
-                        <a href="documententry.php" class="admin-nav-item">
-                            <i class="fas fa-file-upload"></i>
-                            <span>Document Entry</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="assign-document.php" class="admin-nav-item">
-                            <i class="fas fa-file-export"></i>
-                            <span>Assign Documents</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="incoming.php" class="admin-nav-item">
                             <i class="fas fa-inbox"></i>
                             <span>Incoming</span>
@@ -651,13 +639,7 @@ $conn->close();
                     <li>
                         <a href="received.php" class="admin-nav-item">
                             <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="returned.php" class="admin-nav-item">
-                            <i class="fas fa-undo"></i>
-                            <span>Returned</span>
+                            <span>Approved</span>
                         </a>
                     </li>
                     <li>
@@ -666,12 +648,12 @@ $conn->close();
                             <span>Finished</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="archive.php" class="admin-nav-item active">
-                            <i class="fas fa-archive"></i>
-                            <span>Archive</span>
-                        </a>
-                    </li>
+                        <li>
+                            <a href="returned.php" class="admin-nav-item">
+                                <i class="fas fa-undo"></i>
+                                <span>Returned</span>
+                            </a>
+                        </li>
                 </ul>
             </nav>
 

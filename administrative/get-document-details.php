@@ -11,12 +11,6 @@ if (empty($_SESSION['user_id'])) {
     exit;
 }
 
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'Administrative Assistant') {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Forbidden']);
-    exit;
-}
-
 $doc_id = intval($_GET['id'] ?? 0);
 if ($doc_id <= 0) {
     http_response_code(400);
@@ -26,6 +20,9 @@ if ($doc_id <= 0) {
 
 $user_id = intval($_SESSION['user_id']);
 require_once '../config/db_connect.php';
+
+// Debug: Log the request
+error_log("DEBUG: get-document-details.php called - doc_id: $doc_id, user_id: $user_id");
 
 $sql = "SELECT
         d.id,
@@ -38,7 +35,11 @@ $sql = "SELECT
         d.created_at,
         d.status
     FROM documents d
-    WHERE d.id = ? AND d.created_by = ?";
+    WHERE d.id = ? AND (d.created_by = ? OR d.id IN (
+        SELECT DISTINCT da.document_id FROM document_assignments da WHERE da.assigned_to = ? AND da.document_id IS NOT NULL
+    ) OR d.id IN (
+        SELECT DISTINCT da.document_id FROM document_assignments da WHERE da.assigned_by = ?
+    ))";
 
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
@@ -48,9 +49,17 @@ if (!$stmt) {
     exit;
 }
 
-$stmt->bind_param('ii', $doc_id, $user_id);
-$stmt->execute();
+$stmt->bind_param('iiii', $doc_id, $user_id, $user_id, $user_id);
+if (!$stmt->execute()) {
+    error_log("DEBUG: Query execute failed - " . $stmt->error);
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Database error: ' . $stmt->error]);
+    $stmt->close();
+    $conn->close();
+    exit;
+}
 $result = $stmt->get_result();
+error_log("DEBUG: Query returned " . $result->num_rows . " rows");
 
 if ($result->num_rows === 0) {
     $stmt->close();

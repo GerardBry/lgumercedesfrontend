@@ -38,14 +38,10 @@
             <li>
                 <a href="received.php" class="nav-item" data-page="received">
                     <i class="fas fa-envelope-open"></i>
-                    <span>Received</span>
+                    <span>Approved</span>
                 </a>
             </li>
             <li>
-                <a href="returned.php" class="nav-item" data-page="returned">
-                    <i class="fas fa-undo"></i>
-                    <span>Returned</span>
-                </a>
             </li>
             <li>
                 <a href="finished.php" class="nav-item" data-page="finished">

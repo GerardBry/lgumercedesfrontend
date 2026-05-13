@@ -48,16 +48,27 @@ function createStatusUpdateNotification($conn, $user_id, $document_id, $assignme
  * Create a custom notification message
  */
 function createCustomNotification($conn, $user_id, $document_id, $assignment_id, $tracking_number, $message, $type = 'status_update', $old_status = null, $new_status = null) {
+    // Convert null values to empty strings, and 0 to empty string (for NULL handling)
+    $old_status_val = $old_status !== null ? $old_status : '';
+    $new_status_val = $new_status !== null ? $new_status : '';
+    
+    // Handle document_id and assignment_id - convert 0 to empty string for NULLIF conversion
+    $document_id_val = intval($document_id) > 0 ? intval($document_id) : '';
+    $assignment_id_val = intval($assignment_id) > 0 ? intval($assignment_id) : '';
+    
     $sql = "INSERT INTO notifications (user_id, type, tracking_number, document_id, assignment_id, old_status, new_status, message, is_read)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, FALSE)";
+            VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, FALSE)";
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
+        error_log("Prepare error: " . $conn->error);
         return false;
     }
     
-    // Bind parameters - handle NULL values properly for status fields
-    $stmt->bind_param('issiisss', $user_id, $type, $tracking_number, $document_id, $assignment_id, $old_status, $new_status, $message);
+    // Bind parameters - all as strings to support NULLIF conversion
+    // Type string: i(user_id), s(type), s(tracking_number), s(document_id), s(assignment_id), s(old_status), s(new_status), s(message)
+    // Total: 1 int + 7 strings = 'isssssss'
+    $stmt->bind_param('isssssss', $user_id, $type, $tracking_number, $document_id_val, $assignment_id_val, $old_status_val, $new_status_val, $message);
     
     $result = $stmt->execute();
     if (!$result) {
@@ -170,5 +181,3 @@ function markAllNotificationsAsRead($conn, $user_id) {
     }
     return false;
 }
-
-?>

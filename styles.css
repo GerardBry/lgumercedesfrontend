@@ -1059,6 +1059,107 @@ textarea {
     font-size: 14px;
 }
 
+/* File Upload Area for Modal Forms */
+.file-upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-upload-area:hover {
+    border-color: var(--primary-color);
+    background-color: rgba(255, 149, 0, 0.05);
+}
+
+.file-upload-area i {
+    color: var(--primary-color);
+    margin-bottom: 8px;
+}
+
+.file-upload-area p {
+    color: var(--text-light);
+    font-size: 14px;
+    margin: 0;
+}
+
+.file-name-display {
+    display: block;
+    margin-top: 12px;
+    padding: 8px;
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+/* Travel Request Form Styles */
+.travel-request-form .form-section {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.travel-request-form .form-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.travel-request-form .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin: 0 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 2px solid rgba(255, 149, 0, 0.2);
+}
+
+.travel-request-form .form-group {
+    margin-bottom: 10px;
+}
+
+.travel-request-form .form-group label {
+    font-weight: 600;
+    color: #666;
+    font-size: 11px;
+    margin-bottom: 4px;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+}
+
+.travel-request-form .form-group input[type="text"],
+.travel-request-form .form-group input[type="date"],
+.travel-request-form .form-group textarea,
+.travel-request-form .form-group select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: inherit;
+}
+
+.travel-request-form .form-group textarea {
+    resize: vertical;
+    min-height: 50px;
+}
+
+.travel-request-form .form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+}
+
 .form-actions {
     display: flex;
     gap: 12px;
@@ -1110,7 +1211,7 @@ textarea {
 
 .btn-warning {
     background-color: #ffc107;
-    color: #000000;
+    color: #ffffff;
 }
 
 .btn-warning:hover {
@@ -1278,6 +1379,37 @@ textarea {
     color: #3c763d;
 }
 
+.badge-primary {
+    background-color: #d9edf7;
+    color: #31708f;
+}
+
+.badge-danger {
+    background-color: #f2dede;
+    color: #a94442;
+}
+
+/* Classification badges */
+.badge-classification-letter {
+    background-color: #d9edf7;
+    color: #31708f;
+}
+
+.badge-classification-invitation {
+    background-color: #dff0d8;
+    color: #3c763d;
+}
+
+.badge-classification-travel {
+    background-color: #fcf8e3;
+    color: #8a6d3b;
+}
+
+.badge-classification-indorsement {
+    background-color: #f2dede;
+    color: #a94442;
+}
+
 /* ==========================================
    MODAL STYLING
    ========================================== */
@@ -1292,6 +1424,7 @@ textarea {
     z-index: 2000;
     align-items: center;
     justify-content: center;
+    background-color: rgba(0, 0, 0, 0.5);
 }
 
 .modal.active {
@@ -1302,8 +1435,39 @@ textarea {
     z-index: 2050;
 }
 
+#documentDetailsModal {
+    z-index: 3000;
+}
+
+#documentDetailsBackdrop {
+    z-index: 2999;
+}
+
+#fileViewerModal {
+    z-index: 3100;
+}
+
 #confirmSubmitModal {
     z-index: 2100;
+}
+
+#fileUploadModal {
+    z-index: 3050 !important;
+    display: none !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+#fileUploadModal.active {
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
 }
 
 #previewBackdrop {
@@ -1335,8 +1499,9 @@ textarea {
 }
 
 .modal-content.modal-large {
-    max-width: 1300px;
-    max-height: 95vh;
+    max-width: 750px;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .document-details {
@@ -1345,6 +1510,12 @@ textarea {
 
 .details-section {
     margin-bottom: 20px;
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
 }
 
 .details-section h4 {
@@ -2264,3 +2435,82 @@ textarea {
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 149, 0, 0.6);
 }
+
+/* ==========================================
+   Admin-only Theme Overrides
+   Applied when <body class="admin-theme"> is present
+   Distinct, modern, minimalist look for administrative users
+   ========================================== */
+
+.admin-theme {
+    --primary-color: #2b7cff; /* Cooler admin accent */
+    --primary-dark: #1f5ad6;
+    --primary-light: #6fa8ff;
+    --sidebar-bg: #0f1724; /* darker slate for admin */
+    --bg-light: #f7f9fc;
+    --bg-white: #ffffff;
+    --text-dark: #12263b;
+    --text-light: #556877;
+    --border-color: #e6eefc;
+    --shadow-md: 0 6px 20px rgba(15, 23, 36, 0.08);
+    --radius-md: 10px;
+}
+
+.admin-theme .admin-sidebar {
+    background-color: var(--sidebar-bg);
+    width: 260px;
+}
+
+.admin-theme .admin-logo-icon {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
+    box-shadow: 0 6px 18px rgba(43, 124, 255, 0.12);
+}
+
+.admin-theme .admin-nav-item {
+    color: rgba(255,255,255,0.85);
+}
+
+.admin-theme .admin-nav-item.active {
+    background: linear-gradient(90deg, rgba(43,124,255,0.12), rgba(43,124,255,0.06));
+    color: var(--primary-color);
+    box-shadow: none;
+}
+
+.admin-theme .table-container {
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+}
+
+.admin-theme .data-table thead {
+    background: transparent;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.admin-theme .data-table th,
+.admin-theme .data-table td {
+    padding: 12px 14px;
+}
+
+.admin-theme .modal-content {
+    border-radius: 12px;
+    box-shadow: 0 30px 80px rgba(15,23,36,0.12);
+}
+
+.admin-theme .btn-primary {
+    background: linear-gradient(90deg, var(--primary-color), var(--primary-dark));
+    color: #fff;
+    border: none;
+}
+
+.admin-theme .header-with-button h2,
+.admin-theme .page-header-info h2 {
+    color: var(--text-dark);
+}
+
+/* Compact, subtle badges */
+.admin-theme .badge {
+    border-radius: 999px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+

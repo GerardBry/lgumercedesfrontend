@@ -621,12 +621,15 @@ $conn->close();
                             <thead>
                                 <tr>
                                     <th>Tracking Code</th>
-                                    <th>Title</th>
-                                    <th>Type</th>
-                                    <th>Office</th>
-                                    <th>Created By</th>
-                                    <th>Date</th>
+                                    <th>Subject/Title</th>
+                                    <th>Sender</th>
+                                    <th>Description</th>
+                                    <th>Date Received</th>
+                                    <th>Classification</th>
+                                    <th>Sub-Classification</th>
+                                    <th>Prioritization</th>
                                     <th>Status</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -636,15 +639,29 @@ $conn->close();
                                         $badge_class = 'badge-pending';
                                         if ($status === 'Completed') $badge_class = 'badge-completed';
                                         elseif ($status === 'Returned') $badge_class = 'badge-returned';
+
+                                        $senderName = trim(($doc['creator_first_name'] ?? '') . ' ' . ($doc['creator_last_name'] ?? '')) ?: ($doc['sender_name'] ?? '-');
+                                        $descriptionShort = isset($doc['description']) ? (strlen($doc['description']) > 80 ? substr($doc['description'],0,80) . '...' : $doc['description']) : '-';
+                                        $dateReceived = !empty($doc['date_received']) ? date('M d, Y', strtotime($doc['date_received'])) : ($doc['date_sent'] ? date('M d, Y', strtotime($doc['date_sent'])) : '-');
+                                        $classification = $doc['classification'] ?? '-';
+                                        $sub_class = $doc['sub_classification'] ?? '-';
+                                        $priority = $doc['priority'] ?? 'Normal';
                                     ?>
-                                    <tr>
+                                    <tr data-filter-row="true" data-keywords="<?php echo htmlspecialchars(strtolower(($doc['tracking_number'] ?? '') . ' ' . ($doc['title'] ?? '') . ' ' . ($senderName ?? '') . ' ' . ($doc['description'] ?? ''))); ?>" data-sender="<?php echo htmlspecialchars(strtolower($senderName)); ?>" data-priority="<?php echo htmlspecialchars($priority); ?>" data-date="<?php echo htmlspecialchars(!empty($doc['date_received']) ? $doc['date_received'] : ($doc['date_sent'] ?? '')); ?>">
                                         <td><strong><?php echo htmlspecialchars($doc['tracking_number']); ?></strong></td>
                                         <td><?php echo htmlspecialchars($doc['title']); ?></td>
-                                        <td><?php echo htmlspecialchars($doc['document_type']); ?></td>
-                                        <td><?php echo htmlspecialchars($doc['office_department'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars(($doc['creator_first_name'] ?? '') . ' ' . ($doc['creator_last_name'] ?? '')); ?></td>
-                                        <td><?php echo $doc['date_sent'] ? date('M d, Y', strtotime($doc['date_sent'])) : '-'; ?></td>
+                                        <td><?php echo htmlspecialchars($senderName); ?></td>
+                                        <td><?php echo htmlspecialchars($descriptionShort); ?></td>
+                                        <td><?php echo htmlspecialchars($dateReceived); ?></td>
+                                        <td><?php echo !empty($classification) ? '<span class="badge badge-info">' . htmlspecialchars($classification) . '</span>' : '-'; ?></td>
+                                        <td><?php echo htmlspecialchars($sub_class); ?></td>
+                                        <td><span class="badge badge-primary"><?php echo htmlspecialchars($priority); ?></span></td>
                                         <td><span class="badge <?php echo $badge_class; ?>"><?php echo htmlspecialchars($status); ?></span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-info" onclick="viewRecordDocument(<?php echo intval($doc['assignment_id']); ?>)">
+                                                <i class="fas fa-eye"></i> View
+                                            </button>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -659,5 +676,196 @@ $conn->close();
             </div>
         </main>
     </div>
-</body>
+
+            <!-- View Record Document Modal -->
+            <div id="viewRecordModal" class="modal" style="background-color: rgba(0, 0, 0, 0.5); display: none;" onclick="if(event.target === this) closeRecordModal()">
+                <div class="modal-content modal-large">
+                    <div class="modal-header">
+                        <h3>Document Details</h3>
+                        <button class="modal-close" onclick="closeRecordModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                        <h4 style="margin-bottom: 16px; font-size: 16px; font-weight: 600; border-bottom: 3px solid var(--primary-color); padding-bottom: 8px;">Document Information</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                            <div class="detail-row">
+                                <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Document ID</label>
+                                <span style="font-size: 14px; font-weight: 600; color: #333;" id="viewRecordDocumentID">-</span>
+                            </div>
+                            <div class="detail-row">
+                                <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Subject/Title</label>
+                                <span style="font-size: 14px; color: #333;" id="viewRecordTitle">-</span>
+                            </div>
+                            <div class="detail-row">
+                                <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Sender</label>
+                                <span style="font-size: 14px; color: #333;" id="viewRecordSender">-</span>
+                            </div>
+                            <div class="detail-row">
+                                <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Date Received</label>
+                                <span style="font-size: 14px; color: #333;" id="viewRecordDateReceived">-</span>
+                            </div>
+                            <div class="detail-row">
+                                <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Classification</label>
+                                <span id="viewRecordClassification" style="display: inline-block;"><span class="badge badge-info">-</span></span>
+                            </div>
+                            <div class="detail-row">
+                                <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Sub-Classification</label>
+                                <span style="font-size: 14px; color: #333;" id="viewRecordSubClassification">-</span>
+                            </div>
+                            <div class="detail-row">
+                                <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Prioritization</label>
+                                <span id="viewRecordPrioritization" style="display: inline-block;"><span class="badge badge-primary">-</span></span>
+                            </div>
+                        </div>
+
+                        <div class="detail-row" style="margin-bottom: 16px;">
+                            <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Description</label>
+                            <span style="font-size: 14px; color: #333; display: block; line-height: 1.6;" id="viewRecordDescription">-</span>
+                        </div>
+
+                        <div class="detail-row" style="margin-bottom: 16px;">
+                            <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Attached File</label>
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <span style="font-size: 14px; color: #333; flex: 1;" id="viewRecordFileName">No attachment</span>
+                                <button type="button" class="btn btn-sm btn-warning" onclick="viewRecordFile()" id="viewRecordFileBtn" style="display: none;">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                                <button type="button" class="btn btn-sm btn-info" onclick="downloadRecordDocument()" id="downloadRecordBtn" style="display: none;">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="uploadedFilesSectionRecord" style="display: none; margin-top: 20px; padding-top: 20px; border-top: 2px solid #28a745;">
+                            <h4 style="margin-bottom: 16px; font-size: 14px; font-weight: 600; color: #28a745;">
+                                <i class="fas fa-file-upload"></i> Uploaded Pictures/Files
+                            </h4>
+                            <div id="uploadedFilesListRecord" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeRecordModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+        </body>
+        <script>
+            let currentRecordDocument = null;
+
+            function viewRecordDocument(assignmentId) {
+                currentRecordDocument = null;
+                // Fetch details
+                fetch('../get-document-details.php?assignment_id=' + encodeURIComponent(assignmentId))
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.success) {
+                            alert(data.message || 'Failed to load document');
+                            return;
+                        }
+                        const d = data.document;
+                        currentRecordDocument = d;
+                        document.getElementById('viewRecordDocumentID').textContent = d.tracking_number || d.id || '';
+                        document.getElementById('viewRecordTitle').textContent = d.title || '-';
+                        document.getElementById('viewRecordSender').textContent = d.sender_name || (d.sender_first_name ? (d.sender_first_name + ' ' + (d.sender_last_name||'')) : '-');
+                        document.getElementById('viewRecordDateReceived').textContent = d.date_received || d.date_sent || '-';
+                        document.getElementById('viewRecordClassification').innerHTML = d.classification ? ('<span class="badge badge-info">' + d.classification + '</span>') : '-';
+                        document.getElementById('viewRecordSubClassification').textContent = d.sub_classification || '-';
+                        document.getElementById('viewRecordPrioritization').innerHTML = d.priority ? ('<span class="badge badge-primary">' + d.priority + '</span>') : '<span class="badge badge-primary">Normal</span>';
+                        document.getElementById('viewRecordDescription').textContent = d.description || '-';
+
+                        // Attached completion file
+                        const fileNameEl = document.getElementById('viewRecordFileName');
+                        const viewBtn = document.getElementById('viewRecordFileBtn');
+                        const downloadBtn = document.getElementById('downloadRecordBtn');
+
+                        if (d.has_completion_file || d.file_path) {
+                            const fname = d.completion_file_name || d.file_path || 'attachment';
+                            fileNameEl.textContent = fname;
+                            viewBtn.style.display = '';
+                            downloadBtn.style.display = '';
+                        } else {
+                            fileNameEl.textContent = 'No attachment';
+                            viewBtn.style.display = 'none';
+                            downloadBtn.style.display = 'none';
+                        }
+
+                        // Load uploaded files if any
+                        loadRecordUploadedFiles(assignmentId);
+
+                        // Show modal
+                        const modal = document.getElementById('viewRecordModal');
+                        modal.style.display = 'block';
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        alert('Error loading document');
+                    });
+            }
+
+            function closeRecordModal() {
+                const modal = document.getElementById('viewRecordModal');
+                modal.style.display = 'none';
+            }
+
+            function viewRecordFile() {
+                if (!currentRecordDocument) return;
+                // Open file viewer - use completion file endpoint
+                const assignmentId = currentRecordDocument.assignment_id || currentRecordDocument.id;
+                window.open('../get-document-file.php?assignment_id=' + encodeURIComponent(assignmentId), '_blank');
+            }
+
+            function downloadRecordDocument() {
+                if (!currentRecordDocument) return;
+                const assignmentId = currentRecordDocument.assignment_id || currentRecordDocument.id;
+                const link = document.createElement('a');
+                link.href = '../get-document-file.php?assignment_id=' + encodeURIComponent(assignmentId);
+                link.target = '_blank';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+            function loadRecordUploadedFiles(assignmentId) {
+                const listEl = document.getElementById('uploadedFilesListRecord');
+                const section = document.getElementById('uploadedFilesSectionRecord');
+                listEl.innerHTML = '';
+                section.style.display = 'none';
+
+                fetch('../administrative/get-document-uploads.php?assignment_id=' + encodeURIComponent(assignmentId))
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.success) return;
+                        const uploads = data.uploads || [];
+                        if (uploads.length === 0) return;
+                        section.style.display = '';
+                        uploads.forEach(u => {
+                            const row = document.createElement('div');
+                            row.style.display = 'flex';
+                            row.style.justifyContent = 'space-between';
+                            row.style.alignItems = 'center';
+                            row.style.gap = '12px';
+                            row.innerHTML = '<div>' + (u.notes ? ('<strong>' + (u.notes) + '</strong> - ') : '') + (u.file_path ? u.file_path.split('/').pop() : '') + '</div>';
+                            const actions = document.createElement('div');
+                            const view = document.createElement('a');
+                            view.className = 'btn btn-sm btn-warning';
+                            view.href = '../' + (u.file_path || '');
+                            view.target = '_blank';
+                            view.innerHTML = '<i class="fas fa-eye"></i> View';
+                            const dl = document.createElement('a');
+                            dl.className = 'btn btn-sm btn-info';
+                            dl.href = '../' + (u.file_path || '');
+                            dl.download = '';
+                            dl.innerHTML = '<i class="fas fa-download"></i> Download';
+                            actions.appendChild(view);
+                            actions.appendChild(dl);
+                            row.appendChild(actions);
+                            listEl.appendChild(row);
+                        });
+                    })
+                    .catch(err => console.error(err));
+            }
+        </script>
 </html>

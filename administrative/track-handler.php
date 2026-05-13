@@ -28,11 +28,27 @@ if (empty($tracking_code)) {
 require_once '../config/db_connect.php';
 
 try {
+    // Some deployments may not have returned_at yet.
+    $hasReturnedAt = false;
+    $checkReturnedAtSql = "SHOW COLUMNS FROM document_assignments LIKE 'returned_at'";
+    $checkReturnedAtStmt = $conn->prepare($checkReturnedAtSql);
+    if ($checkReturnedAtStmt) {
+        if ($checkReturnedAtStmt->execute()) {
+            $checkReturnedAtResult = $checkReturnedAtStmt->get_result();
+            $hasReturnedAt = ($checkReturnedAtResult && $checkReturnedAtResult->num_rows > 0);
+        }
+        $checkReturnedAtStmt->close();
+    }
+
     // Get a canonical document row for this tracking code (latest activity)
-    $sql_doc = "SELECT id, tracking_number, title, description, document_type, status, date_sent, created_by
-                FROM documents
-                WHERE tracking_number = ?
-                ORDER BY date_sent DESC, id DESC
+    $sql_doc = "SELECT d.id, d.tracking_number, d.title, d.description, d.sender_name, d.date_received, d.classification, d.sub_classification, d.priority, d.document_type, d.status, d.date_sent, d.created_by,
+                        sender.first_name as sender_first_name,
+                        sender.last_name as sender_last_name,
+                        sender.position as sender_position
+                FROM documents d
+                LEFT JOIN users sender ON d.sender_id = sender.id
+                WHERE d.tracking_number = ?
+                ORDER BY d.date_sent DESC, d.id DESC
                 LIMIT 1";
     
     $stmt_doc = $conn->prepare($sql_doc);
@@ -74,7 +90,7 @@ try {
     }
     
     // Get creator info
-    $sql_creator = "SELECT first_name, last_name, position FROM users WHERE id = ? LIMIT 1";
+    $sql_creator = "SELECT first_name, last_name, position, role FROM users WHERE id = ? LIMIT 1";
     $stmt_creator = $conn->prepare($sql_creator);
     $stmt_creator->bind_param("i", $document['created_by']);
     $stmt_creator->execute();
@@ -95,6 +111,8 @@ try {
             da.received_at,
             da.completed_at,
             da.updated_at,
+            (SELECT MAX(n.created_at) FROM notifications n WHERE n.assignment_id = da.id AND n.new_status = 'Returned') as rejection_at,
+            " . ($hasReturnedAt ? "da.returned_at," : "NULL as returned_at,") . "
             
             -- Assigned by info
             assigner.first_name as assigner_first_name,
@@ -124,19 +142,104 @@ try {
         $assignments[] = $row;
     }
     $stmt_assignments->close();
+
+    $travel_requests = [];
+    // Query travel requests linked via parent_document_id or parent_tracking_code
+    $document_id_text = (string)$document_id;
+    $sql_travel_requests = "SELECT
+            d.id,
+            d.title,
+            d.description,
+            d.tracking_number,
+            d.created_at,
+            d.date_sent,
+            d.created_by,
+            d.notes,
+            d.sender_name,
+            u.first_name,
+            u.last_name,
+            u.position
+        FROM documents d
+        LEFT JOIN users u ON d.created_by = u.id
+        WHERE d.document_type = 'Travel Request'
+          AND EXISTS (
+            SELECT 1
+            FROM documents parent
+            WHERE parent.id = ?
+              AND (
+                JSON_UNQUOTE(JSON_EXTRACT(d.notes, '$.parent_document_id')) = CAST(parent.id AS CHAR)
+                OR JSON_UNQUOTE(JSON_EXTRACT(d.notes, '$.parent_document_id')) = ?
+                OR JSON_UNQUOTE(JSON_EXTRACT(d.notes, '$.parent_tracking_code')) = parent.tracking_number
+              )
+          )
+        ORDER BY d.date_sent ASC, d.id ASC";
+
+    $stmt_travel_requests = $conn->prepare($sql_travel_requests);
+    if ($stmt_travel_requests) {
+        $stmt_travel_requests->bind_param('is', $document_id, $document_id_text);
+        $stmt_travel_requests->execute();
+        $result_travel_requests = $stmt_travel_requests->get_result();
+        while ($row = $result_travel_requests->fetch_assoc()) {
+            $travel_requests[] = $row;
+        }
+        $stmt_travel_requests->close();
+    }
+
+    $uploads = [];
+    $check_uploads_table = $conn->query("SHOW TABLES LIKE 'document_uploads'");
+    if ($check_uploads_table && $check_uploads_table->num_rows > 0) {
+        $sql_uploads = "SELECT
+                du.id,
+                du.assignment_id,
+                du.file_path,
+                du.notes,
+                du.uploaded_by,
+                du.uploaded_at,
+                da.assigned_by,
+                da.assigned_to,
+                da.status as assignment_status
+            FROM document_uploads du
+            JOIN document_assignments da ON du.assignment_id = da.id
+            JOIN documents d ON da.document_id = d.id
+            WHERE d.tracking_number = ?
+            ORDER BY du.uploaded_at ASC, du.id ASC";
+
+        $stmt_uploads = $conn->prepare($sql_uploads);
+        if ($stmt_uploads) {
+            $stmt_uploads->bind_param('s', $tracking_code);
+            $stmt_uploads->execute();
+            $result_uploads = $stmt_uploads->get_result();
+            while ($row = $result_uploads->fetch_assoc()) {
+                $uploads[] = $row;
+            }
+            $stmt_uploads->close();
+        }
+    }
     
     // Build audit trail timeline
     $timeline = [];
+
+    $document_creator = trim(($creator['first_name'] ?? '') . ' ' . ($creator['last_name'] ?? ''));
+    if ($document_creator === '') {
+        $document_creator = trim((string)($document['sender_name'] ?? ''));
+    }
+    if ($document_creator === '') {
+        $document_creator = 'Unknown';
+    }
+
+    $document_status = trim((string)($document['status'] ?? ''));
+    $document_status_lower = strtolower($document_status);
     
     // Initial creation event
     $timeline[] = [
         'event_type' => 'created',
-        'title' => 'Document Created',
-        'description' => 'Document was created and assigned a tracking code',
-        'who' => ($creator['first_name'] ?? 'Unknown') . ' ' . ($creator['last_name'] ?? ''),
-        'who_position' => $creator['position'] ?? 'System',
+        'sequence' => 2,
+        'title' => 'Document Submitted',
+        'description' => 'Document was submitted and registered in the tracking system',
+        'who' => $document_creator,
+        'who_position' => $creator['position'] ?? 'Sender',
         'timestamp' => $document['date_sent'],
-        'status' => 'Created'
+        'status' => 'Submitted'
     ];
     
     // Process each assignment as an event
@@ -144,100 +247,198 @@ try {
         $assigner_name = ($assignment['assigner_first_name'] ?? 'Unknown') . ' ' . ($assignment['assigner_last_name'] ?? '');
         $recipient_name = ($assignment['recipient_first_name'] ?? 'Unknown') . ' ' . ($assignment['recipient_last_name'] ?? '');
         $assignment_status = trim((string)($assignment['assignment_status'] ?? ''));
-        
-        // Check if previous assignment was "Forwarded" - if so, treat this as "Received" instead of "Assigned"
-        $previous_was_forwarded = ($index > 0 && trim((string)($assignments[$index - 1]['assignment_status'] ?? '')) === 'Forwarded');
-        
-        // Only show "Assigned" event if it's not following a "Forwarded" assignment
-        if (!$previous_was_forwarded) {
+
+        if (!empty($assignment['assigned_at'])) {
             $timeline[] = [
-                'event_type' => 'assigned',
-                'title' => 'Document Assigned',
-                'description' => "Document assigned to <strong>{$recipient_name}</strong> ({$assignment['recipient_role']}) in {$assignment['office_department']}",
+                'event_type' => 'routed',
+                'sequence' => 1,
+                'title' => 'Routed to Department Staff',
+                'description' => "Document routed to <strong>{$recipient_name}</strong>" . (!empty($assignment['office_department']) ? " in <strong>{$assignment['office_department']}</strong>" : ''),
                 'who' => $assigner_name,
                 'who_position' => $assignment['assigner_position'] ?? 'Administrative Assistant',
                 'timestamp' => $assignment['assigned_at'],
-                'status' => 'Pending',
+                'status' => 'Routed',
                 'recipient' => $recipient_name,
                 'recipient_role' => $assignment['recipient_role'],
                 'notes' => $assignment['notes']
             ];
         }
-        
-        // Received event
-        if ($assignment['received_at'] || $previous_was_forwarded) {
-            $received_timestamp = $assignment['received_at'] ?? $assignment['assigned_at'];
+
+        if (!empty($assignment['received_at'])) {
             $timeline[] = [
                 'event_type' => 'received',
-                'title' => 'Document Received',
-                'description' => "<strong>{$recipient_name}</strong> ({$assignment['recipient_role']}) received the document",
+                'sequence' => 3,
+                'title' => 'Administrative Received',
+                'description' => 'Administrative Head acknowledged receipt and started processing the document',
                 'who' => $recipient_name,
-                'who_position' => $assignment['recipient_position'] ?? 'Staff',
-                'timestamp' => $received_timestamp,
+                'who_position' => $assignment['recipient_position'] ?? 'Administrative Assistant',
+                'timestamp' => $assignment['received_at'],
                 'status' => 'Received'
             ];
         }
-        
-        // Workflow progress events beyond Received
-        // Show all intermediate steps when document is Completed
-        if ($assignment_status === 'Checking Documents' || $assignment_status === 'Waiting For Approval by Mayor' || $assignment_status === 'Completed') {
-            // Add Checking Documents event
+
+        if ($assignment_status === 'Returned' && (!empty($assignment['rejection_at']) || !empty($assignment['returned_at']) || !empty($assignment['updated_at']))) {
+            $returned_timestamp = $assignment['rejection_at'] ?: $assignment['returned_at'] ?: $assignment['updated_at'];
+            $returned_reason = trim((string)($assignment['notes'] ?? ''));
+
             $timeline[] = [
-                'event_type' => 'checking_documents',
-                'title' => 'Checking Documents',
-                'description' => "<strong>{$recipient_name}</strong> is validating and checking the submitted requirements",
-                'who' => $recipient_name,
-                'who_position' => $assignment['recipient_position'] ?? 'Staff',
-                'timestamp' => $assignment['updated_at'] ?: $assignment['received_at'] ?: $assignment['assigned_at'],
-                'status' => 'Checking Documents'
-            ];
-        }
-        
-        if ($assignment_status === 'Waiting For Approval by Mayor' || $assignment_status === 'Completed') {
-            // Add Waiting For Approval event (always comes after Checking Documents)
-            $timeline[] = [
-                'event_type' => 'waiting_approval',
-                'title' => 'Waiting For Approval by Mayor',
-                'description' => "Document is awaiting final mayoral approval",
-                'who' => $recipient_name,
-                'who_position' => $assignment['recipient_position'] ?? 'Staff',
-                'timestamp' => $assignment['updated_at'] ?: $assignment['received_at'] ?: $assignment['assigned_at'],
-                'status' => 'Waiting For Approval by Mayor'
-            ];
-        }
-        
-        if ($assignment_status === 'Completed') {
-            // Add Completed event (final step)
-            $timeline[] = [
-                'event_type' => 'completed',
-                'title' => 'Document Processing Completed',
-                'description' => "Document processing and review completed by {$recipient_name}",
-                'who' => $recipient_name,
-                'who_position' => $assignment['recipient_position'] ?? 'Staff',
-                'timestamp' => $assignment['completed_at'] ?: $assignment['updated_at'] ?: $assignment['assigned_at'],
-                'status' => 'Completed'
-            ];
-        }
-        
-        if ($assignment_status === 'Forwarded') {
-            $timeline[] = [
-                'event_type' => 'forwarded',
-                'title' => 'Document Forwarded',
-                'description' => "{$recipient_name} forwarded the document back to administration",
-                'who' => $recipient_name,
-                'who_position' => $assignment['recipient_position'] ?? 'Staff',
-                'timestamp' => $assignment['completed_at'] ?: $assignment['updated_at'] ?: $assignment['assigned_at'],
-                'status' => 'Forwarded'
+                'event_type' => 'returned',
+                'sequence' => 3.5,
+                'title' => 'Returned to Department Staff',
+                'description' => !empty($assignment['office_department'])
+                    ? "Document returned to <strong>{$recipient_name}</strong> in <strong>{$assignment['office_department']}</strong>"
+                    : "Document returned to <strong>{$recipient_name}</strong>",
+                'who' => $assigner_name,
+                'who_position' => $assignment['assigner_position'] ?? 'Administrative Assistant',
+                'timestamp' => $returned_timestamp,
+                'status' => 'Returned',
+                'recipient' => $recipient_name,
+                'recipient_role' => $assignment['recipient_role'],
+                'notes' => $returned_reason
             ];
         }
     }
+
+    if ($document_status_lower === 'approved' || $document_status_lower === 'completed') {
+        $approval_timestamp = $document['date_received'] ?: $document['date_sent'];
+        if (!empty($assignments)) {
+            $latest_assignment = $assignments[count($assignments) - 1];
+            $approval_timestamp = $latest_assignment['updated_at'] ?: $latest_assignment['received_at'] ?: $latest_assignment['assigned_at'] ?: $approval_timestamp;
+        }
+
+        $timeline[] = [
+            'event_type' => 'approved',
+            'sequence' => 4,
+            'title' => 'Approved by Administrative',
+            'description' => 'Administrative staff reviewed and approved the routed document',
+            'who' => 'Administrative',
+            'who_position' => 'Administrative Assistant',
+            'timestamp' => $approval_timestamp,
+            'status' => 'Approved'
+        ];
+    }
+
+    foreach ($travel_requests as $travel_request) {
+        $travel_request_creator = trim(($travel_request['first_name'] ?? '') . ' ' . ($travel_request['last_name'] ?? ''));
+        if ($travel_request_creator === '') {
+            $travel_request_creator = $travel_request['sender_name'] ?? 'Department Staff';
+        }
+
+        $timeline[] = [
+            'event_type' => 'travel_request',
+            'sequence' => 5,
+            'title' => 'Travel Request Submitted',
+            'description' => 'Department staff submitted a travel request linked to this document',
+            'who' => $travel_request_creator,
+            'who_position' => $travel_request['position'] ?? 'Department Staff',
+            'timestamp' => $travel_request['created_at'] ?: $travel_request['date_sent'],
+            'status' => 'Travel Request',
+            'notes' => $travel_request['description'] ?: ($travel_request['notes'] ?? '')
+        ];
+    }
+
+    foreach ($uploads as $upload) {
+        $uploaded_by = trim((string)($upload['uploaded_by'] ?? ''));
+        if ($uploaded_by === '') {
+            $uploaded_by = 'Administrative';
+        }
+
+        $timeline[] = [
+            'event_type' => 'uploaded',
+            'sequence' => 6,
+            'title' => 'Administrative Uploads',
+            'description' => 'Supporting files were uploaded to the document record',
+            'who' => $uploaded_by,
+            'who_position' => 'Administrative Staff',
+            'timestamp' => $upload['uploaded_at'],
+            'status' => 'Uploaded',
+            'notes' => $upload['notes'] ?? ''
+        ];
+    }
+
+    if ($document_status_lower === 'completed' || !empty(array_filter($assignments, function ($assignment) {
+        return trim((string)($assignment['assignment_status'] ?? '')) === 'Completed';
+    }))) {
+        $completed_timestamp = $document['date_received'] ?: $document['date_sent'];
+        foreach (array_reverse($assignments) as $assignment) {
+            if (!empty($assignment['completed_at'])) {
+                $completed_timestamp = $assignment['completed_at'];
+                break;
+            }
+        }
+
+        $timeline[] = [
+            'event_type' => 'completed',
+            'sequence' => 7,
+            'title' => 'Completed',
+            'description' => 'Document workflow was marked complete after upload and review',
+            'who' => 'Administrative',
+            'who_position' => 'Administrative Assistant',
+            'timestamp' => $completed_timestamp,
+            'status' => 'Completed'
+        ];
+    }
+
+    usort($timeline, function ($left, $right) {
+        $leftSequence = $left['sequence'] ?? 999;
+        $rightSequence = $right['sequence'] ?? 999;
+
+        if ($leftSequence !== $rightSequence) {
+            return $leftSequence <=> $rightSequence;
+        }
+
+        $leftTime = !empty($left['timestamp']) ? strtotime($left['timestamp']) : 0;
+        $rightTime = !empty($right['timestamp']) ? strtotime($right['timestamp']) : 0;
+        return $leftTime <=> $rightTime;
+    });
+
+    // Normalize document status based on creator role
+    $creator_role = trim((string)($creator['role'] ?? ''));
+    $is_admin_origin = $creator_role === 'Administrative Assistant';
     
+    // If status is empty, derive from timeline
+    if (empty($document_status) || trim($document_status) === '') {
+        // Find the latest meaningful status from timeline
+        $timelineReverse = array_reverse($timeline);
+        foreach ($timelineReverse as $event) {
+            if (!empty($event['status']) && $event['status'] !== 'Submitted') {
+                $document_status = $event['status'];
+                break;
+            }
+        }
+    }
+    
+    // Normalize status based on document origin
+    // Administrative staff documents should show "Approved"
+    // Department staff documents should show "Completed"
+    if ($is_admin_origin) {
+        // Administrative origin: show Approved (unless specifically Returned)
+        if ($document_status !== 'Returned' && !empty($document_status)) {
+            $document_status = 'Approved';
+        } elseif (empty($document_status)) {
+            $document_status = 'Approved';
+        }
+    } else {
+        // Department staff origin: show Completed (unless specifically Returned)
+        if ($document_status !== 'Returned' && !empty($document_status)) {
+            $document_status = 'Completed';
+        } elseif (empty($document_status)) {
+            $document_status = 'Completed';
+        }
+    }
+
     echo json_encode([
         'success' => true,
         'document' => [
             'tracking_number' => $document['tracking_number'],
             'title' => $document['title'],
             'description' => $document['description'],
+            'sender_name' => $document_creator,
+            'date_sent' => $document['date_sent'],
+            'date_received' => $document['date_received'],
+            'classification' => $document['classification'],
+            'sub_classification' => $document['sub_classification'],
+            'priority' => $document['priority'],
             'document_type' => $document['document_type'],
             'status' => $document['status'],
             'created_by' => ($creator['first_name'] ?? '') . ' ' . ($creator['last_name'] ?? ''),

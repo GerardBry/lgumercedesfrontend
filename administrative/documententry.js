@@ -1,5 +1,27 @@
 let currentDocumentData = null;
 let currentDetailDocument = null;
+let isEditMode = false;
+
+// Sub-classification mapping for dynamic options
+const subClassifications = {
+    'Letter': [
+        'Request Letter'
+    ],
+    'Invitation': [
+        'Seminar/Training Invitation',
+        'Meeting Invitation',
+        'Conference/Event Invitation'
+    ],
+    'Travel-Related Communication': [
+        'Official Travel Notice',
+        'Field Visit/Inspection',
+        'Meeting Assignment'
+    ],
+    'Indorsement': [
+        'For Information',
+        'For Action'
+    ]
+};
 
 function handleLogout() {
     window.location.href = 'admin-logout.php';
@@ -15,12 +37,16 @@ function openCreateDocumentModal() {
 
     modal.classList.add('active');
     backdrop.classList.add('active');
-    resetDocumentForm();
+    
+    // Only reset if not in edit mode
+    if (!isEditMode) {
+        resetDocumentForm();
+    }
 
     setTimeout(() => {
-        const title = document.getElementById('modalDocTitle');
-        if (title) {
-            title.focus();
+        const subject = document.getElementById('docSubject');
+        if (subject) {
+            subject.focus();
         }
     }, 100);
 }
@@ -28,19 +54,71 @@ function openCreateDocumentModal() {
 function closeCreateDocumentModal() {
     document.getElementById('createDocumentModal').classList.remove('active');
     document.getElementById('modalBackdrop').classList.remove('active');
+    isEditMode = false;
     resetDocumentForm();
 }
 
 function resetDocumentForm() {
-    document.getElementById('createDocumentForm').reset();
-    document.getElementById('modalDocType').value = '';
-    hideDynamicForms();
+    const form = document.getElementById('createDocumentForm');
+    form.reset();
+    document.getElementById('subClassification').value = '';
+    document.getElementById('fileNameDisplay').style.display = 'none';
+    
+    // Show file upload section
+    const fileUploadSection = document.getElementById('fileUploadSection');
+    if (fileUploadSection) {
+        fileUploadSection.style.display = 'block';
+    }
+    
+    // Restore file input required attribute
+    const fileInput = document.getElementById('documentFile');
+    if (fileInput) {
+        fileInput.setAttribute('required', 'required');
+    }
+    
+    // Reset modal header and button
+    const modalHeader = document.querySelector('#createDocumentModal .modal-header h3');
+    if (modalHeader) {
+        modalHeader.textContent = 'Add Document';
+    }
+    
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+        submitButton.innerHTML = '<i class="fas fa-check"></i> Add Document';
+    }
+    
+    // Remove document_id input
+    const docIdInput = document.getElementById('documentIdInput');
+    if (docIdInput) {
+        docIdInput.remove();
+    }
+    
+    isEditMode = false;
+}
+
+function updateSubClassification() {
+    const classification = document.getElementById('classification').value;
+    const subClassificationSelect = document.getElementById('subClassification');
+    
+    // Clear existing options
+    subClassificationSelect.innerHTML = '<option value="">Select Sub-Classification</option>';
+    
+    // Populate sub-classifications based on main classification
+    if (classification && subClassifications[classification]) {
+        subClassifications[classification].forEach(subClass => {
+            const option = document.createElement('option');
+            option.value = subClass;
+            option.textContent = subClass;
+            subClassificationSelect.appendChild(option);
+        });
+        subClassificationSelect.disabled = false;
+    } else {
+        subClassificationSelect.disabled = true;
+    }
 }
 
 function hideDynamicForms() {
-    document.getElementById('travelOrderForm').style.display = 'none';
-    document.getElementById('executiveOrderForm').style.display = 'none';
-    document.getElementById('officeOrderForm').style.display = 'none';
+    // Placeholder for future use if needed
 }
 
 function isTravelOrderType(docType) {
@@ -48,79 +126,31 @@ function isTravelOrderType(docType) {
 }
 
 function updateDynamicForm() {
-    const docType = document.getElementById('modalDocType').value;
     hideDynamicForms();
-
-    if (isTravelOrderType(docType)) {
-        document.getElementById('travelOrderForm').style.display = 'block';
-        initializePersonnelList();
-        generateTravelOrderNumber();
-    } else if (docType === 'Executive Order') {
-        document.getElementById('executiveOrderForm').style.display = 'block';
-    } else if (docType === 'Office Order') {
-        document.getElementById('officeOrderForm').style.display = 'block';
-        initializeAssignedPersonnelList();
-    }
-}
-
-function generateTravelOrderNumber() {
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = String(today.getFullYear()).slice(-2);
-    const random = String(Math.floor(Math.random() * 9000) + 1000);
-    document.getElementById('toNumber').value = day + month + year + '-' + random;
 }
 
 function initializePersonnelList() {
-    const list = document.getElementById('personnelList');
-    if (list.children.length === 0) {
-        addPersonnel();
-    }
+    // Placeholder for future use if needed
 }
 
 function addPersonnel() {
-    const list = document.getElementById('personnelList');
-    const item = document.createElement('div');
-    item.className = 'multi-entry-item';
-    item.innerHTML = '<input type="text" placeholder="Name of Employee / Personnel" class="traveler-name" required>' +
-        '<input type="text" placeholder="Position/Designation" class="traveler-position" required>' +
-        '<button type="button" class="btn btn-sm btn-secondary" onclick="removePersonnel(this)"><i class="fas fa-trash"></i></button>';
-    list.appendChild(item);
+    // Placeholder for future use if needed
 }
 
 function removePersonnel(button) {
-    const list = document.getElementById('personnelList');
-    if (list.children.length > 1) {
-        button.closest('.multi-entry-item').remove();
-    } else {
-        notify('At least one personnel is required');
-    }
+    // Placeholder for future use if needed
 }
 
 function initializeAssignedPersonnelList() {
-    const list = document.getElementById('assignedPersonnelList');
-    if (list.children.length === 0) {
-        addAssignedPersonnel();
-    }
+    // Placeholder for future use if needed
 }
 
 function addAssignedPersonnel() {
-    const list = document.getElementById('assignedPersonnelList');
-    const item = document.createElement('div');
-    item.className = 'multi-entry-item';
-    item.innerHTML = '<input type="text" placeholder="Name of Personnel" class="assigned-personnel" required>' +
-        '<button type="button" class="btn btn-sm btn-secondary" onclick="removeAssignedPersonnel(this)"><i class="fas fa-trash"></i></button>';
-    list.appendChild(item);
+    // Placeholder for future use if needed
 }
 
 function removeAssignedPersonnel(button) {
-    const list = document.getElementById('assignedPersonnelList');
-    if (list.children.length > 1) {
-        button.closest('.multi-entry-item').remove();
-    } else {
-        notify('At least one personnel is required');
-    }
+    // Placeholder for future use if needed
 }
 
 function handlePreviewDocument(e) {
@@ -129,35 +159,12 @@ function handlePreviewDocument(e) {
 }
 
 function previewDocument() {
-    const docType = document.getElementById('modalDocType').value;
-    const title = document.getElementById('modalDocTitle').value;
-
-    if (!docType || !title) {
-        notify('Please fill in all required fields');
-        return;
-    }
-
-    currentDocumentData = collectDocumentData(docType);
-
-    let previewHTML = '';
-    if (isTravelOrderType(docType)) {
-        previewHTML = generateTravelOrderPreview(currentDocumentData);
-    } else if (docType === 'Executive Order') {
-        previewHTML = generateExecutiveOrderPreview(currentDocumentData);
-    } else {
-        previewHTML = generateOfficeOrderPreview(currentDocumentData);
-    }
-
-    document.getElementById('previewContent').innerHTML = previewHTML;
-    document.getElementById('previewDocumentModal').classList.add('active');
-    document.getElementById('previewBackdrop').classList.add('active');
-    document.getElementById('createDocumentModal').style.zIndex = '1998';
+    // Placeholder for preview functionality
 }
 
 function closePreviewModal() {
     document.getElementById('previewDocumentModal').classList.remove('active');
     document.getElementById('previewBackdrop').classList.remove('active');
-    document.getElementById('createDocumentModal').style.zIndex = '2000';
 }
 
 function printPreviewDocument() {
@@ -208,83 +215,11 @@ function collectDocumentData(docType) {
         type: docType,
         dateCreated: formatDate(new Date())
     };
-
-    if (isTravelOrderType(docType)) {
-        data.orderNumber = document.getElementById('toNumber').value;
-        data.dateIssued = document.getElementById('toDate').value;
-        data.travelers = Array.from(document.querySelectorAll('.traveler-name')).map(el => el.value);
-        data.destination = document.getElementById('travelDestination').value;
-        data.purpose = document.getElementById('travelPurpose').value;
-        data.startDate = document.getElementById('travelStartDate').value;
-        data.endDate = document.getElementById('travelEndDate').value;
-        data.duration = document.getElementById('travelDuration').value;
-        data.mode = document.getElementById('travelMode').value;
-        data.from = document.getElementById('toFrom').value;
-        data.subject = document.getElementById('toSubject').value;
-    } else if (docType === 'Executive Order') {
-        data.orderNumber = document.getElementById('eoNumber').value;
-        data.eoTitle = document.getElementById('eoTitle').value;
-        data.legalBasis = document.getElementById('eoLegalBasis').value;
-        data.description = document.getElementById('eoDescription').value;
-        data.eoDateIssued = document.getElementById('eoDateIssued').value;
-        data.signatory = document.getElementById('eoSignatory').value;
-    } else {
-        data.orderNumber = document.getElementById('ooNumber').value;
-        data.effectivityDate = document.getElementById('ooDate').value;
-        data.assignedPersonnel = Array.from(document.querySelectorAll('.assigned-personnel')).map(el => el.value);
-        data.task = document.getElementById('ooTask').value;
-        data.department = document.getElementById('ooDepartment').value;
-        data.remarks = document.getElementById('ooRemarks').value;
-    }
-
     return data;
 }
 
 function saveDocumentAsDraft() {
-    const docType = document.getElementById('modalDocType').value;
-    const title = document.getElementById('modalDocTitle').value;
-    const data = collectDocumentData(docType);
-
-    let description = '';
-    if (isTravelOrderType(docType)) {
-        description = 'Travel to ' + (data.destination || '-') + ' - ' + (data.travelers || []).join(', ');
-    } else if (docType === 'Executive Order') {
-        description = data.eoTitle || title;
-    } else {
-        description = (data.assignedPersonnel || []).join(', ') + ' - ' + (data.department || '');
-    }
-
-    const payload = {
-        action: 'save_draft',
-        document_type: docType,
-        title: title,
-        description: description,
-        content: data
-    };
-
-    fetch('documententry-handler.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-    })
-        .then(response => response.json())
-        .then(dataResp => {
-            if (!dataResp.success) {
-                notify(dataResp.message || 'Failed to save document');
-                return;
-            }
-
-            closeCreateDocumentModal();
-            notify('Document saved successfully.');
-            setTimeout(() => {
-                window.location.href = 'documententry.php';
-            }, 400);
-        })
-        .catch(() => {
-            notify('Failed to save document');
-        });
+    // This will be handled by the form submission
 }
 
 function viewSavedDocument(docId) {
@@ -303,15 +238,102 @@ function viewSavedDocument(docId) {
 }
 
 function displayDocumentDetailsModal(doc) {
-    let detailsHTML = '<div class="document-details"><div class="details-section">' +
-        '<h4>Document Information</h4>' +
-        '<div class="detail-row"><label>Tracking Code:</label><span>' + htmlEscape(doc.tracking_number) + '</span></div>' +
-        '<div class="detail-row"><label>Title:</label><span>' + htmlEscape(doc.title) + '</span></div>' +
-        '<div class="detail-row"><label>Document Type:</label><span>' + htmlEscape(doc.document_type) + '</span></div>' +
-        '<div class="detail-row"><label>Description:</label><span>' + htmlEscape(doc.description) + '</span></div>' +
-        '<div class="detail-row"><label>Date Created:</label><span>' + new Date(doc.created_at).toLocaleString() + '</span></div>' +
-        '<div class="detail-row"><label>Status:</label><span><span class="badge badge-info">' + htmlEscape(doc.status) + '</span></span></div>' +
-        '</div></div>';
+    // Parse additional data from notes JSON
+    const additionalData = doc.notes ? JSON.parse(doc.notes) : {};
+    const docId = 'DOC-' + String(doc.id).padStart(4, '0');
+    // Use direct columns first, fallback to JSON
+    const sender = doc.sender_name || additionalData.sender || 'N/A';
+    const dateReceived = doc.date_received || additionalData.date_received || 'N/A';
+    const classification = doc.classification || additionalData.classification || 'N/A';
+    const priority = doc.priority || additionalData.priority || 'N/A';
+    const filePath = doc.file_path || additionalData.file_path || null;
+    
+    // Determine classification badge class
+    let classificationClass = 'badge-info';
+    if (classification === 'Letter') {
+        classificationClass = 'badge-classification-letter';
+    } else if (classification === 'Invitation') {
+        classificationClass = 'badge-classification-invitation';
+    } else if (classification === 'Travel-Related Communication') {
+        classificationClass = 'badge-classification-travel';
+    } else if (classification === 'Indorsement') {
+        classificationClass = 'badge-classification-indorsement';
+    }
+
+    // Determine priority badge class
+    let priorityClass = 'badge-secondary';
+    if (priority === 'Normal') {
+        priorityClass = 'badge-primary';
+    } else if (priority === 'Urgent') {
+        priorityClass = 'badge-warning';
+    } else if (priority === 'Critical') {
+        priorityClass = 'badge-danger';
+    }
+
+    // Prepare file section HTML
+    let fileHTML = '';
+    if (filePath) {
+        const fileExt = filePath.split('.').pop().toLowerCase();
+        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'].includes(fileExt);
+        const isPDF = fileExt === 'pdf';
+        const fileName = filePath.split('/').pop();
+        window.currentDocumentFilePath = filePath;
+        
+        fileHTML = `
+            <div class="detail-row" style="margin-top: 16px;">
+                <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Attached File</label>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <span style="font-size: 14px; color: #333; flex: 1;">${htmlEscape(fileName)}</span>
+                    ${isImage ? `<button type="button" class="btn btn-sm btn-primary" onclick="viewDocumentFileModal()"><i class="fas fa-eye"></i> View</button>` : ''}
+                    ${isPDF ? `<button type="button" class="btn btn-sm btn-primary" onclick="window.open('view-document-file.php?path=' + encodeURIComponent('${filePath}'), '_blank')"><i class="fas fa-eye"></i> View</button>` : ''}
+                    <button type="button" class="btn btn-sm btn-info" onclick="downloadDocumentFile()"><i class="fas fa-download"></i> Download</button>
+                </div>
+            </div>
+        `;
+    }
+
+    const detailsHTML = `
+        <div class="document-details">
+            <div class="details-section">
+                <h4 style="margin-bottom: 16px; font-size: 16px; font-weight: 600;">Document Information</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="detail-row">
+                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Document ID</label>
+                        <span style="font-size: 14px; font-weight: 600; color: #333;">${htmlEscape(docId)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Subject/Title</label>
+                        <span style="font-size: 14px; color: #333;">${htmlEscape(doc.title)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Sender</label>
+                        <span style="font-size: 14px; color: #333;">${htmlEscape(sender)}</span>
+                    </div>
+                    <div class="detail-row">
+                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Date Received</label>
+                        <span style="font-size: 14px; color: #333;">${dateReceived !== 'N/A' ? new Date(dateReceived).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Classification</label>
+                        <span><span class="badge ${classificationClass}" style="font-size: 11px; padding: 5px 10px;">${htmlEscape(classification)}</span></span>
+                    </div>
+                    <div class="detail-row">
+                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Prioritization</label>
+                        <span><span class="badge ${priorityClass}" style="font-size: 11px; padding: 5px 10px;">${htmlEscape(priority)}</span></span>
+                    </div>
+                </div>
+                <div class="detail-row" style="margin-top: 16px;">
+                    <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Description</label>
+                    <span style="font-size: 14px; color: #333; display: block; line-height: 1.6;">${htmlEscape(doc.description || 'N/A')}</span>
+                </div>
+                <div class="detail-row" style="margin-top: 16px;">
+                    <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Created Date</label>
+                    <span style="font-size: 14px; color: #333;">${new Date(doc.created_at).toLocaleString()}</span>
+                </div>
+                ${fileHTML}
+            </div>
+        </div>
+    `;
 
     document.getElementById('documentDetailsModalContent').innerHTML = detailsHTML;
     document.getElementById('documentPreviewModalContent').innerHTML = generateDocumentPreview(doc);
@@ -324,9 +346,150 @@ function closeDocumentDetailsModal() {
     document.getElementById('documentDetailsBackdrop').classList.remove('active');
 }
 
+function viewDocumentFileModal() {
+    if (!window.currentDocumentFilePath) {
+        alert('No file to view');
+        return;
+    }
+    const url = 'view-document-file.php?path=' + encodeURIComponent(window.currentDocumentFilePath);
+    const fileName = window.currentDocumentFilePath.split('/').pop();
+    document.getElementById('fileViewerTitle').textContent = 'Viewing: ' + fileName;
+    document.getElementById('fileViewerImage').src = url;
+    document.getElementById('fileViewerModal').classList.add('active');
+}
+
+function closeFileViewerModal() {
+    document.getElementById('fileViewerModal').classList.remove('active');
+    document.getElementById('fileViewerImage').src = '';
+}
+
+function downloadDocumentFile(filePath = '', fileName = '') {
+    const targetPath = filePath || window.currentDocumentFilePath;
+    if (!targetPath) {
+        alert('No file to download');
+        return;
+    }
+
+    const targetName = fileName || targetPath.split('/').pop();
+    const url = 'get-document-file.php?path=' + encodeURIComponent(targetPath);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = targetName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+function editDocument() {
+    if (!currentDetailDocument) {
+        notify('No document selected');
+        return;
+    }
+    
+    // Close details modal and populate form with current data
+    closeDocumentDetailsModal();
+    populateEditForm(currentDetailDocument);
+    openCreateDocumentModal();
+}
+
+function populateEditForm(doc) {
+    // Parse additional data from notes JSON
+    const additionalData = doc.notes ? JSON.parse(doc.notes) : {};
+    
+    // Set form mode to edit
+    isEditMode = true;
+    
+    // Store document ID
+    const form = document.getElementById('createDocumentForm');
+    
+    // Remove existing document_id input if present
+    const existingInput = form.querySelector('#documentIdInput');
+    if (existingInput) {
+        existingInput.remove();
+    }
+    
+    // Create and add hidden document_id input
+    const docIdInput = document.createElement('input');
+    docIdInput.type = 'hidden';
+    docIdInput.name = 'document_id';
+    docIdInput.id = 'documentIdInput';
+    docIdInput.value = doc.id;
+    form.appendChild(docIdInput);
+    
+    // Populate form fields with a slight delay to ensure DOM is ready
+    setTimeout(() => {
+        // Set basic information
+        const subjectField = document.getElementById('docSubject');
+        const senderField = document.getElementById('docSender');
+        const dateReceivedField = document.getElementById('dateReceived');
+        const descriptionField = document.getElementById('docDescription');
+        const deadlineField = document.getElementById('deadline');
+        
+        if (subjectField) subjectField.value = doc.title || '';
+        if (senderField) senderField.value = additionalData.sender || '';
+        if (dateReceivedField) dateReceivedField.value = additionalData.date_received || '';
+        if (descriptionField) descriptionField.value = doc.description || '';
+        if (deadlineField) deadlineField.value = additionalData.deadline || '';
+        
+        // Set classification
+        const classificationField = document.getElementById('classification');
+        if (classificationField) {
+            classificationField.value = additionalData.classification || '';
+            // Trigger change to update sub-classifications
+            updateSubClassification();
+            
+            // Set sub-classification after a brief delay
+            setTimeout(() => {
+                const subClassificationField = document.getElementById('subClassification');
+                if (subClassificationField) {
+                    subClassificationField.value = additionalData.sub_classification || '';
+                }
+            }, 50);
+        }
+        
+        // Set priority
+        const priorityField = document.getElementById('priority');
+        if (priorityField) priorityField.value = additionalData.priority || 'Normal';
+        
+        // Show file upload section (optional for editing)
+        const fileUploadSection = document.getElementById('fileUploadSection');
+        if (fileUploadSection) {
+            fileUploadSection.style.display = 'block';
+        }
+        
+        // Make file input not required in edit mode (optional)
+        const fileInput = document.getElementById('documentFile');
+        if (fileInput) {
+            fileInput.removeAttribute('required');
+        }
+        
+        // Update submit button text
+        const submitButton = form.querySelector('button[type="submit"]');
+        if (submitButton) {
+            submitButton.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+        }
+        
+        // Update modal header
+        const modalHeader = document.querySelector('#createDocumentModal .modal-header h3');
+        if (modalHeader) {
+            modalHeader.textContent = 'Edit Document';
+        }
+    }, 50);
+}
+
+function forwardDocument() {
+    if (!currentDetailDocument) {
+        notify('No document selected');
+        return;
+    }
+    
+    // Close the details modal and open forward modal
+    closeDocumentDetailsModal();
+    forwardSavedDocument(currentDetailDocument.id);
+}
+
 function forwardSavedDocument(docId) {
     document.getElementById('forwardDocId').value = String(docId);
-    document.getElementById('forwardNotes').value = '';
     document.getElementById('forwardOffice').innerHTML = '<option value="">Select Office</option>';
     document.getElementById('forwardRecipient').innerHTML = '<option value="">Select Recipient</option>';
 
@@ -390,7 +553,6 @@ function confirmForwardDocument() {
     const documentId = parseInt(document.getElementById('forwardDocId').value, 10);
     const office = document.getElementById('forwardOffice').value;
     const recipientId = parseInt(document.getElementById('forwardRecipient').value, 10);
-    const notes = document.getElementById('forwardNotes').value.trim();
 
     if (!documentId || !office || !recipientId) {
         notify('Please complete office and recipient before forwarding.');
@@ -401,8 +563,7 @@ function confirmForwardDocument() {
         action: 'forward_document',
         document_id: documentId,
         office: office,
-        recipient_id: recipientId,
-        notes: notes
+        recipient_id: recipientId
     };
 
     fetch('forward-document-handler.php', {
@@ -430,88 +591,82 @@ function confirmForwardDocument() {
         });
 }
 
-function generateTravelOrderPreview(data) {
-    const travelers = Array.from(document.querySelectorAll('.traveler-name'))
-        .map((el, idx) => {
-            const positions = document.querySelectorAll('.traveler-position');
-            const position = positions[idx] ? positions[idx].value : '';
-            return el.value + ', ' + position;
-        })
-        .join('<br/>');
-
-    return '<div class="document-preview"><div class="document-header">' +
-        '<div class="doc-municipality">Province of Camarines Norte</div>' +
-        '<div class="doc-office">MUNICIPALITY OF MERCEDES<br>OFFICE OF THE MUNICIPAL MAYOR</div>' +
-        '<div class="doc-title">TRAVEL ORDER</div>' +
-        '<div class="doc-number">No. ' + htmlEscape(data.orderNumber || 'TBD') + '</div></div>' +
-        '<div class="document-body">' +
-        '<div class="doc-line"><div class="doc-label">TO</div><div class="doc-content"><div class="doc-list">' + travelers + '</div></div></div>' +
-        '<div class="doc-line"><div class="doc-label">FROM</div><div class="doc-content">' + htmlEscape(data.from || 'Municipal Mayor') + '</div></div>' +
-        '<div class="doc-line"><div class="doc-label">DATE</div><div class="doc-content">' + htmlEscape(formatDateLong(data.dateIssued)) + '</div></div>' +
-        '<div class="doc-line"><div class="doc-label">SUBJECT</div><div class="doc-content">' + htmlEscape(data.subject || 'As Stated') + '</div></div>' +
-        '<div class="doc-paragraph">You are hereby directed to attend ' + htmlEscape(data.purpose || '') + '.</div>' +
-        '<div class="doc-paragraph"><strong>Destination:</strong> ' + htmlEscape(data.destination || '-') + '<br><strong>Travel Dates:</strong> ' + htmlEscape(formatDateShort(data.startDate)) + ' to ' + htmlEscape(formatDateShort(data.endDate)) + '<br><strong>Duration:</strong> ' + htmlEscape(data.duration || '-') + ' day(s)<br><strong>Mode of Transportation:</strong> ' + htmlEscape(data.mode || '-') + '</div>' +
-        '</div></div>';
-}
-
-function generateExecutiveOrderPreview(data) {
-    return '<div class="document-preview"><div class="document-header">' +
-        '<div class="doc-municipality">Province of Camarines Norte</div>' +
-        '<div class="doc-office">MUNICIPALITY OF MERCEDES<br>OFFICE OF THE MUNICIPAL MAYOR</div>' +
-        '<div class="doc-title">EXECUTIVE ORDER</div>' +
-        '<div class="doc-number">No. ' + htmlEscape(data.orderNumber || 'TBD') + '</div></div>' +
-        '<div class="document-body">' +
-        '<div class="doc-line"><div class="doc-label">DATE</div><div class="doc-content">' + htmlEscape(formatDateLong(data.eoDateIssued)) + '</div></div>' +
-        '<div class="doc-paragraph" style="margin-top: 30px;"><strong>' + htmlEscape(data.eoTitle || '') + '</strong></div>' +
-        '<div class="doc-line"><div class="doc-label">WHEREAS:</div><div class="doc-content">' + htmlEscape(data.legalBasis || '') + '</div></div>' +
-        '<div class="doc-paragraph">' + htmlEscape(data.description || '') + '</div>' +
-        '<div class="doc-paragraph"><strong>Signed this ' + htmlEscape(formatDateLong(data.eoDateIssued)) + '</strong></div>' +
-        '<div class="doc-line"><div class="doc-label">BY</div><div class="doc-content">' + htmlEscape(data.signatory || 'Municipal Mayor') + '</div></div>' +
-        '</div></div>';
-}
-
-function generateOfficeOrderPreview(data) {
-    const personnel = Array.from(document.querySelectorAll('.assigned-personnel')).map(el => el.value).join(', ');
-
-    return '<div class="document-preview"><div class="document-header">' +
-        '<div class="doc-municipality">Province of Camarines Norte</div>' +
-        '<div class="doc-office">MUNICIPALITY OF MERCEDES<br>OFFICE OF THE MUNICIPAL MAYOR</div>' +
-        '<div class="doc-title">OFFICE ORDER</div>' +
-        '<div class="doc-number">No. ' + htmlEscape(data.orderNumber || 'TBD') + '</div></div>' +
-        '<div class="document-body">' +
-        '<div class="doc-line"><div class="doc-label">DATE</div><div class="doc-content">' + htmlEscape(formatDateLong(data.effectivityDate)) + '</div></div>' +
-        '<div class="doc-line"><div class="doc-label">TO</div><div class="doc-content">' + htmlEscape(personnel) + '</div></div>' +
-        '<div class="doc-line"><div class="doc-label">DEPARTMENT</div><div class="doc-content">' + htmlEscape(data.department || '') + '</div></div>' +
-        '<div class="doc-paragraph"><strong>TASK/INSTRUCTION:</strong><br>' + htmlEscape(data.task || '') + '</div>' +
-        '<div class="doc-paragraph"><strong>Effectivity:</strong> ' + htmlEscape(formatDateLong(data.effectivityDate)) + '</div>' +
-        (data.remarks ? '<div class="doc-paragraph"><strong>Remarks:</strong> ' + htmlEscape(data.remarks) + '</div>' : '') +
-        '</div></div>';
-}
-
 function generateDocumentPreview(doc) {
-    let content = {};
-    try {
-        content = JSON.parse(doc.notes || '{}');
-    } catch (e) {
-        content = {};
+    const additionalData = doc.notes ? JSON.parse(doc.notes) : {};
+    const filePath = additionalData.file_path || '';
+    
+    let previewHTML = `
+        <div class="document-preview">
+            <h4 style="margin-bottom: 16px; font-size: 16px; font-weight: 600;">Document File</h4>
+    `;
+    
+    if (filePath) {
+        const fileName = filePath.split('/').pop();
+        const fileExtension = fileName.split('.').pop().toLowerCase();
+        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
+        const isImage = imageExtensions.includes(fileExtension);
+        
+        if (isImage) {
+            // Show image preview
+            const imageUrl = 'view-document-file.php?path=' + encodeURIComponent(filePath);
+            previewHTML += `
+                <div style="border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background-color: #f9f9f9; margin-bottom: 12px;">
+                    <div style="max-height: 400px; overflow-y: auto; display: flex; align-items: center; justify-content: center; background-color: #f0f0f0;">
+                        <img src="${imageUrl}" style="max-width: 100%; max-height: 400px; object-fit: contain;" alt="${htmlEscape(fileName)}">
+                    </div>
+                    <div style="padding: 12px;">
+                        <p style="margin: 0 0 8px 0; font-weight: 600; font-size: 14px; word-break: break-all;">${htmlEscape(fileName)}</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <button type="button" onclick="viewDocumentFile('${htmlEscape(filePath)}')" style="padding: 10px 16px; background-color: var(--primary-color); color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                                <i class="fas fa-eye"></i> View Full
+                            </button>
+                            <button type="button" onclick="downloadDocumentFile('${htmlEscape(filePath)}', '${htmlEscape(fileName)}')" style="padding: 10px 16px; background-color: #28a745; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Show file info for PDFs and other files
+            previewHTML += `
+                <div style="border: 1px solid #ddd; border-radius: 8px; padding: 16px; background-color: #f9f9f9; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <i class="fas fa-file-pdf" style="font-size: 32px; color: ${fileExtension === 'pdf' ? '#d32f2f' : '#ff9500'};"></i>
+                        <div>
+                            <p style="margin: 0; font-weight: 600; font-size: 14px; word-break: break-all;">${htmlEscape(fileName)}</p>
+                            <p style="margin: 4px 0 0 0; font-size: 12px; color: #666;">File: ${htmlEscape(fileExtension.toUpperCase())}</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button type="button" onclick="viewDocumentFile('${htmlEscape(filePath)}')" style="padding: 10px 16px; background-color: var(--primary-color); color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button type="button" onclick="downloadDocumentFile('${htmlEscape(filePath)}', '${htmlEscape(fileName)}')" style="padding: 10px 16px; background-color: #28a745; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.3s ease;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                            <i class="fas fa-download"></i> Download
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+    } else {
+        previewHTML += `
+            <div style="border: 1px solid #ddd; border-radius: 8px; padding: 16px; background-color: #f9f9f9; text-align: center; color: #999;">
+                <i class="fas fa-file-slash" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+                <p>No file attached to this document</p>
+            </div>
+        `;
     }
+    
+    previewHTML += '</div>';
+    return previewHTML;
+}
 
-    if (isTravelOrderType(doc.document_type)) {
-        return '<div class="document-preview"><div class="document-header">' +
-            '<div class="doc-municipality">Province of Camarines Norte</div>' +
-            '<div class="doc-office">MUNICIPALITY OF MERCEDES<br>OFFICE OF THE MUNICIPAL MAYOR</div>' +
-            '<div class="doc-title">TRAVEL ORDER</div>' +
-            '<div class="doc-number">No. ' + htmlEscape(doc.tracking_number || '-') + '</div></div>' +
-            '<div class="document-body">' +
-            '<div class="doc-line"><div class="doc-label">TO</div><div class="doc-content">' + htmlEscape((content.travelers || []).join(', ')) + '</div></div>' +
-            '<div class="doc-line"><div class="doc-label">FROM</div><div class="doc-content">' + htmlEscape(content.from || 'Municipal Mayor') + '</div></div>' +
-            '<div class="doc-line"><div class="doc-label">DATE</div><div class="doc-content">' + htmlEscape(content.dateIssued || '-') + '</div></div>' +
-            '<div class="doc-line"><div class="doc-label">SUBJECT</div><div class="doc-content">' + htmlEscape(content.subject || 'As Stated') + '</div></div>' +
-            '<div class="doc-paragraph">You are hereby directed to attend ' + htmlEscape(content.purpose || '') + '.</div>' +
-            '</div></div>';
-    }
-
-    return '<div class="document-preview"><h3>' + htmlEscape(doc.title || '-') + '</h3><p>' + htmlEscape(doc.description || '-') + '</p><p><small>Document Type: ' + htmlEscape(doc.document_type || '-') + '</small></p></div>';
+function viewDocumentFile(filePath) {
+    // Use the view handler to serve the file properly
+    const url = 'view-document-file.php?path=' + encodeURIComponent(filePath);
+    console.log('Opening document file:', url);
+    window.open(url, '_blank');
 }
 
 function formatDateLong(dateString) {
@@ -546,6 +701,201 @@ function htmlEscape(str) {
         .replace(/'/g, '&#039;');
 }
 
+// File Upload Handler
+document.addEventListener('DOMContentLoaded', function() {
+    const fileUploadArea = document.getElementById('fileUploadArea');
+    const fileInput = document.getElementById('documentFile');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+
+    if (fileUploadArea && fileInput) {
+        // Click to upload
+        fileUploadArea.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        // Drag and drop
+        fileUploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            fileUploadArea.style.backgroundColor = '#f0f0f0';
+            fileUploadArea.style.borderColor = 'var(--primary-color)';
+        });
+
+        fileUploadArea.addEventListener('dragleave', function() {
+            fileUploadArea.style.backgroundColor = '';
+            fileUploadArea.style.borderColor = '';
+        });
+
+        fileUploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            fileUploadArea.style.backgroundColor = '';
+            fileUploadArea.style.borderColor = '';
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                updateFileDisplay(files[0]);
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', function(e) {
+            if (this.files.length > 0) {
+                updateFileDisplay(this.files[0]);
+            }
+        });
+    }
+});
+
+function updateFileDisplay(file) {
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+
+    // Validate file
+    if (!allowedTypes.includes(file.type)) {
+        notify('Invalid file type. Please upload PDF or image files.');
+        document.getElementById('documentFile').value = '';
+        fileNameDisplay.style.display = 'none';
+        return;
+    }
+
+    if (file.size > maxSize) {
+        notify('File size exceeds 10MB limit.');
+        document.getElementById('documentFile').value = '';
+        fileNameDisplay.style.display = 'none';
+        return;
+    }
+
+    // Display file name
+    fileNameDisplay.textContent = '✓ ' + file.name + ' (' + (file.size / 1024).toFixed(2) + ' KB)';
+    fileNameDisplay.style.display = 'block';
+}
+
+function handleDocumentFormSubmit() {
+    const form = document.getElementById('createDocumentForm');
+    if (!form) return;
+
+    // Validate all required fields
+    const title = document.getElementById('docSubject').value.trim();
+    const sender = document.getElementById('docSender').value.trim();
+    const dateReceived = document.getElementById('dateReceived').value;
+    const classification = document.getElementById('classification').value;
+    const subClassification = document.getElementById('subClassification').value;
+    const priority = document.getElementById('priority').value;
+    const fileInput = document.getElementById('documentFile');
+
+    if (!title) {
+        notify('Please enter a subject/title');
+        return;
+    }
+
+    if (!sender) {
+        notify('Please enter sender information');
+        return;
+    }
+
+    if (!dateReceived) {
+        notify('Please select date received');
+        return;
+    }
+
+    if (!classification) {
+        notify('Please select a classification');
+        return;
+    }
+
+    if (!subClassification) {
+        notify('Please select a sub-classification');
+        return;
+    }
+
+    if (!priority) {
+        notify('Please select a priority level');
+        return;
+    }
+
+    // For new documents, require file upload
+    if (!isEditMode && (!fileInput.files || fileInput.files.length === 0)) {
+        notify('Please upload a document file');
+        return;
+    }
+
+    // Prepare form data
+    const formData = new FormData(form);
+
+    // Debug: Log all form data
+    console.log('=== FORM DATA BEING SENT ===');
+    for (let [key, value] of formData.entries()) {
+        console.log(`${key}: ${value}`);
+    }
+    console.log('============================');
+
+    // Show loading state
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+    // Determine endpoint and display message
+    const endpoint = isEditMode ? 'update-document-handler.php' : 'add-document-handler.php';
+    const successMessage = isEditMode ? 'Document updated successfully!' : 'Document added successfully!';
+
+    fetch(endpoint, {
+        method: 'POST',
+        body: formData
+    })
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response OK:', response.ok);
+            console.log('Endpoint URL:', endpoint);
+            if (!response.ok && response.status !== 200) {
+                throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+            }
+            return response.text();
+        })
+        .then(text => {
+            console.log('Response text:', text);
+            try {
+                const data = JSON.parse(text);
+                if (!data.success) {
+                    notify(data.message || 'Failed to save document');
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalText;
+                    return;
+                }
+
+                closeCreateDocumentModal();
+                notify(successMessage);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } catch (e) {
+                console.error('JSON parse error:', e, 'Response:', text);
+                notify('Error: Invalid server response. Check console for details.');
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            notify('Failed to save document: ' + error.message);
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        });
+}
+
+// Form submission handler
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('createDocumentForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            handleDocumentFormSubmit();
+        });
+    }
+});
+
+// Escape key handler
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         const createModal = document.getElementById('createDocumentModal');

@@ -109,6 +109,66 @@ if ($result) {
     }
 }
 
+// Department document statistics (department-scoped counts)
+$dept_doc_stats = [
+    'total_documents' => 0,
+    'incoming' => 0,
+    'outgoing' => 0,
+    'received' => 0,
+    'finished' => 0,
+    'archive' => 0
+];
+
+// Total documents - match report.php exactly using final_status logic
+$latest_docs_sql = "SELECT tracking_number, MAX(id) AS latest_id FROM documents WHERE office_department = '$escaped_dept' AND status <> 'Pending' GROUP BY tracking_number";
+$final_status_expr = "CASE
+    WHEN EXISTS (SELECT 1 FROM document_assignments da_completed WHERE da_completed.document_id = d.id AND da_completed.status = 'Completed') THEN 'Completed'
+    WHEN EXISTS (SELECT 1 FROM document_assignments da_approved WHERE da_approved.document_id = d.id AND da_approved.status = 'Approved') THEN 'Approved'
+    ELSE d.status
+END";
+$status_summary_sql = "SELECT d.id, $final_status_expr AS final_status FROM documents d INNER JOIN ($latest_docs_sql) latest ON latest.latest_id = d.id";
+
+$result = $conn->query("SELECT COUNT(*) as count FROM ($status_summary_sql) docs");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $dept_doc_stats['total_documents'] = $row['count'];
+}
+
+// Incoming: assignments where this department is the target and status pending/forwarded
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE office_department = '$escaped_dept' AND status IN ('Pending','Forwarded')");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $dept_doc_stats['incoming'] = $row['count'];
+}
+
+// Outgoing: assignments created by users from this department (exclude completed/archived/returned)
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments da JOIN users u ON da.assigned_by = u.id WHERE u.office_department = '$escaped_dept' AND da.status NOT IN ('Completed','Archived','Returned')");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $dept_doc_stats['outgoing'] = $row['count'];
+}
+
+// Approved assignments for this department
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE office_department = '$escaped_dept' AND status = 'Approved'");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $dept_doc_stats['received'] = $row['count'];
+}
+
+// Finished / Completed assignments for this department
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE office_department = '$escaped_dept' AND status = 'Completed'");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $dept_doc_stats['finished'] = $row['count'];
+}
+
+// Archived assignments for this department
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE office_department = '$escaped_dept' AND status = 'Archived'");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $dept_doc_stats['archive'] = $row['count'];
+}
+
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -406,6 +466,26 @@ $conn->close();
             background: linear-gradient(135deg, #FF9500, #FFB347);
         }
 
+        .admin-stat-icon.stat-incoming {
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+        }
+
+        .admin-stat-icon.stat-outgoing {
+            background: linear-gradient(135deg, #4CAF50, #388E3C);
+        }
+
+        .admin-stat-icon.stat-received {
+            background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+        }
+
+        .admin-stat-icon.stat-finished {
+            background: linear-gradient(135deg, #00BCD4, #0097A7);
+        }
+
+        .admin-stat-icon.stat-archive {
+            background: linear-gradient(135deg, #795548, #5D4037);
+        }
+
         .admin-stat-content {
             flex: 1;
         }
@@ -519,7 +599,7 @@ $conn->close();
         }
     </style>
 </head>
-<body>
+<body class="admin-theme">
     <div class="admin-container">
         <!-- Admin Sidebar -->
         <div class="admin-sidebar">
@@ -545,18 +625,6 @@ $conn->close();
                         </a>
                     </li>
                     <li>
-                        <a href="documententry.php" class="admin-nav-item">
-                            <i class="fas fa-file-upload"></i>
-                            <span>Document Entry</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="assign-document.php" class="admin-nav-item">
-                            <i class="fas fa-file-export"></i>
-                            <span>Assign Documents</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="incoming.php" class="admin-nav-item">
                             <i class="fas fa-inbox"></i>
                             <span>Incoming</span>
@@ -570,8 +638,8 @@ $conn->close();
                     </li>
                     <li>
                         <a href="received.php" class="admin-nav-item">
-                            <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
+                            <i class="fas fa-check-circle"></i>
+                            <span>Approved</span>
                         </a>
                     </li>
                     <li>
@@ -587,9 +655,9 @@ $conn->close();
                         </a>
                     </li>
                     <li>
-                        <a href="archive.php" class="admin-nav-item">
-                            <i class="fas fa-archive"></i>
-                            <span>Archive</span>
+                        <a href="reports.php" class="admin-nav-item">
+                            <i class="fas fa-chart-pie"></i>
+                            <span>Reports</span>
                         </a>
                     </li>
                 </ul>
@@ -634,47 +702,49 @@ $conn->close();
                     <p>Manage your department&apos;s <?php echo htmlspecialchars($department); ?> documents and activities.</p>
                 </div>
 
-                <!-- Statistics - Matched Admin Card Design -->
+                <!-- Statistics - Department Document Cards -->
                 <div class="admin-stats-grid">
-                    <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-pending">
-                            <i class="fas fa-hourglass-half"></i>
+                    <div class="admin-stat-card" data-stat="incoming">
+                        <div class="admin-stat-icon stat-incoming">
+                            <i class="fas fa-inbox"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Pending Documents</div>
-                            <div class="admin-stat-value"><?php echo $stats['pending_documents']; ?></div>
+                            <div class="admin-stat-label">Incoming</div>
+                            <div class="admin-stat-value"><?php echo $dept_doc_stats['incoming']; ?></div>
                         </div>
                     </div>
 
-                    <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-approved">
+                    <div class="admin-stat-card" data-stat="outgoing">
+                        <div class="admin-stat-icon stat-outgoing">
+                            <i class="fas fa-paper-plane"></i>
+                        </div>
+                        <div class="admin-stat-content">
+                            <div class="admin-stat-label">Outgoing</div>
+                            <div class="admin-stat-value"><?php echo $dept_doc_stats['outgoing']; ?></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-stat-card" data-stat="received">
+                        <div class="admin-stat-icon stat-received">
                             <i class="fas fa-check-circle"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Approved Documents</div>
-                            <div class="admin-stat-value"><?php echo $stats['approved_documents']; ?></div>
+                            <div class="admin-stat-label">Approved</div>
+                            <div class="admin-stat-value"><?php echo $dept_doc_stats['received']; ?></div>
                         </div>
                     </div>
 
-                    <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-total">
-                            <i class="fas fa-file-alt"></i>
+                    <div class="admin-stat-card" data-stat="finished">
+                        <div class="admin-stat-icon stat-finished">
+                            <i class="fas fa-check-circle"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Total Documents</div>
-                            <div class="admin-stat-value"><?php echo $stats['total_documents']; ?></div>
+                            <div class="admin-stat-label">Finished</div>
+                            <div class="admin-stat-value"><?php echo $dept_doc_stats['finished']; ?></div>
                         </div>
                     </div>
 
-                    <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-staff">
-                            <i class="fas fa-users"></i>
-                        </div>
-                        <div class="admin-stat-content">
-                            <div class="admin-stat-label">Staff Members</div>
-                            <div class="admin-stat-value"><?php echo $stats['staff_count']; ?></div>
-                        </div>
-                    </div>
+                    <!-- Archive card removed per request -->
                 </div>
                 <!-- Your Permissions -->
                 <h3 class="admin-section-title"><i class="fas fa-lock-open" style="color: var(--primary-color);"></i> Your Permissions</h3>
@@ -720,6 +790,58 @@ $conn->close();
             }
         });
     </script>
+    <script>
+        // Fetch latest department stats and update the dashboard values
+        (function(){
+            fetch('get-dept-stats.php', { credentials: 'same-origin' })
+                .then(res => res.json())
+                .then(data => {
+                    console.debug('get-dept-stats response', data);
+                    const dbg = document.getElementById('dept-stats-debug');
+                    if (dbg) dbg.textContent = 'Response: ' + JSON.stringify(data);
+                    if (!data || data.error) {
+                        if (dbg && data && data.error) dbg.textContent = 'Error: ' + data.error;
+                        return;
+                    }
+                    const stats = data.stats || data;
+                    const allZero = Object.keys(stats).every(k => Number(stats[k]) === 0);
+                    if (allZero && data.diag) {
+                        const byStatus = data.diag.global_assignments_by_status || {};
+                        const fallback = {
+                            total_documents: data.diag.global_documents || 0,
+                            incoming: (Number(byStatus['Pending']) || 0) + (Number(byStatus['Forwarded']) || 0),
+                            outgoing: Object.keys(byStatus).reduce((acc, s) => {
+                                if (!['Completed','Archived','Returned'].includes(s)) return acc + (Number(byStatus[s]) || 0);
+                                return acc;
+                            }, 0),
+                            received: Number(byStatus['Approved']) || 0,
+                            finished: Number(byStatus['Completed']) || 0
+                        };
+                        // update UI with fallback values
+                        Object.keys(fallback).forEach(key => {
+                            const el = document.querySelector(`[data-stat="${key}"] .admin-stat-value`);
+                            if (el) el.textContent = fallback[key];
+                        });
+                        if (dbg) dbg.textContent = dbg.textContent + ' — Using global fallback counts';
+                    } else {
+                        Object.keys(stats).forEach(key => {
+                            const el = document.querySelector(`[data-stat="${key}"] .admin-stat-value`);
+                            if (el) el.textContent = stats[key];
+                        });
+                    }
+                })
+                .catch(err => {
+                    // silently ignore; server-side values remain as fallback
+                    console.error('Failed to fetch dept stats', err);
+                    const dbg = document.getElementById('dept-stats-debug');
+                    if (dbg) dbg.textContent = 'Fetch error: ' + err;
+                });
+        })();
+    </script>
+    <style>
+        #dept-stats-debug { margin: 12px 0 24px 0; padding: 12px; background:#fff; border:1px dashed #e0e0e0; color:#333; font-size:13px; }
+    </style>
+    <div id="dept-stats-debug">Debug: waiting for response...</div>
     <script src="../js/notifications.js"></script>
 </body>
 </html>

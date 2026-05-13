@@ -51,6 +51,13 @@ $sql = "SELECT
         d.notes,
         d.status,
         d.created_by,
+        d.sender_name,
+        d.date_received,
+        d.classification,
+        d.sub_classification,
+        d.priority,
+        d.deadline,
+        d.file_path,
         sender.first_name as sender_first_name,
         sender.last_name as sender_last_name
     FROM documents d

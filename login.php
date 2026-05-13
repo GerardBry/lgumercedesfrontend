@@ -15,12 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please enter both email and password';
     } else {
         // Check user in database - try with rejection_remarks first, fallback if it fails
-        $sql = "SELECT id, first_name, last_name, email, username, password, role, status, rejection_remarks FROM users WHERE email = ? LIMIT 1";
+        $sql = "SELECT id, first_name, last_name, email, username, password, role, status, office_department, rejection_remarks FROM users WHERE email = ? LIMIT 1";
         $stmt = $conn->prepare($sql);
         
         // If rejection_remarks column doesn't exist, try without it
         if (!$stmt) {
-            $sql = "SELECT id, first_name, last_name, email, username, password, role, status FROM users WHERE email = ? LIMIT 1";
+            $sql = "SELECT id, first_name, last_name, email, username, password, role, status, office_department FROM users WHERE email = ? LIMIT 1";
             $stmt = $conn->prepare($sql);
         }
         
@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['last_name'] = $user['last_name'];
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['role'] = $user['role'];
+                    $_SESSION['office_department'] = $user['office_department'] ?? '';
                     
                     // Check if Administrator needs to complete profile
                     if ($user['role'] === 'Administrative Assistant') {

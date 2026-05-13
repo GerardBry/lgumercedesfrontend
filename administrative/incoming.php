@@ -82,6 +82,13 @@ $sql = "SELECT DISTINCT
         d.document_type,
         d.date_sent,
         d.notes as doc_notes,
+        d.sender_name,
+        d.date_received,
+        d.classification,
+        d.sub_classification,
+        d.priority,
+        d.deadline,
+        d.file_path,
         da.office_department,
         (SELECT da_orig.notes FROM document_assignments da_orig JOIN documents d_orig ON da_orig.document_id = d_orig.id WHERE d_orig.tracking_number = d.tracking_number AND da_orig.assigned_by != da_orig.assigned_to ORDER BY da_orig.assigned_at ASC, da_orig.id ASC LIMIT 1) as assignment_notes,
         da.status as assignment_status,
@@ -90,13 +97,14 @@ $sql = "SELECT DISTINCT
         sender.first_name as sender_first_name,
         sender.last_name as sender_last_name,
         assigner.first_name as assigner_first_name,
-        assigner.last_name as assigner_last_name
+        assigner.last_name as assigner_last_name,
+        assigner.office_department as assigner_office
     FROM document_assignments da
     JOIN documents d ON da.document_id = d.id
     LEFT JOIN users sender ON d.sender_id = sender.id
     LEFT JOIN users assigner ON da.assigned_by = assigner.id
     WHERE da.assigned_to = ?
-            AND da.status IN ('Pending', 'Forwarded')
+            AND da.status IN ('Submitted to Administrative Office', 'Pending', 'Forwarded')
     ORDER BY da.assigned_at DESC";
 
 $stmt = $conn->prepare($sql);
@@ -117,7 +125,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Incoming Documents - LGU Mercedes Document Tracking System</title>
+    <title>Incoming Documents - Administrative Panel</title>
     <link rel="stylesheet" href="../styles.css">
     <link rel="stylesheet" href="../css/notifications.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -507,7 +515,7 @@ $conn->close();
         }
     </style>
 </head>
-<body>
+<body class="admin-theme">
     <div class="admin-container">
         <div class="admin-sidebar">
             <div class="admin-sidebar-header">
@@ -532,18 +540,6 @@ $conn->close();
                         </a>
                     </li>
                     <li>
-                        <a href="documententry.php" class="admin-nav-item">
-                            <i class="fas fa-file-upload"></i>
-                            <span>Document Entry</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="assign-document.php" class="admin-nav-item">
-                            <i class="fas fa-file-export"></i>
-                            <span>Assign Documents</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="incoming.php" class="admin-nav-item active">
                             <i class="fas fa-inbox"></i>
                             <span>Incoming</span>
@@ -559,27 +555,28 @@ $conn->close();
                     <li>
                         <a href="received.php" class="admin-nav-item">
                             <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
+                            <span>Approved</span>
                         </a>
                     </li>
                     <li>
-                        <a href="returned.php" class="admin-nav-item">
-                            <i class="fas fa-undo"></i>
-                            <span>Returned</span>
-                        </a>
-                    </li>
+                            <a href="returned.php" class="admin-nav-item">
+                                <i class="fas fa-undo"></i>
+                                <span>Returned</span>
+                        </a></li>
+
                     <li>
                         <a href="finished.php" class="admin-nav-item">
                             <i class="fas fa-check-circle"></i>
                             <span>Finished</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="archive.php" class="admin-nav-item">
-                            <i class="fas fa-archive"></i>
-                            <span>Archive</span>
+                                        <li>
+                        <a href="reports.php" class="admin-nav-item">
+                            <i class="fas fa-chart-pie"></i>
+                            <span>Reports</span>
                         </a>
                     </li>
+
                 </ul>
             </nav>
 
@@ -610,32 +607,101 @@ $conn->close();
                     <p>Pending documents assigned to you</p>
                 </div>
 
+                <div style="background-color: var(--bg-white); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-md);">
+                    <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 16px; font-weight: 600;">Filters</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Search Keyword</label>
+                            <input type="text" id="keywordFilter" placeholder="Search title, sender, description..." style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Sender</label>
+                            <input type="text" id="senderFilter" placeholder="Filter by sender..." style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Prioritization</label>
+                            <select id="priorityFilter" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                                <option value="">All Priorities</option>
+                                <option value="Normal">Normal</option>
+                                <option value="Urgent">Urgent</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Date From</label>
+                            <input type="date" id="dateFromFilter" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Date To</label>
+                            <input type="date" id="dateToFilter" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                        </div>
+                        <div style="display: flex; align-items: flex-end;">
+                            <button onclick="clearFilters()" style="width: 100%; padding: 10px 12px; background-color: #e0e0e0; border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-dark); transition: all 0.3s ease;" onmouseover="this.style.backgroundColor='#d0d0d0'" onmouseout="this.style.backgroundColor='#e0e0e0'">
+                                <i class="fas fa-redo"></i> Clear Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Tracking Code</th>
-                                <th>Document Title</th>
+                                <th>Office</th>
+                                <th>Subject/Title</th>
                                 <th>Sender</th>
-                                <th>Document Type</th>
-                                <th>Date Sent</th>
                                 <th>Description</th>
-                                <th>Notes/Instructions</th>
+                                <th>Date Received</th>
+                                <th>Classification</th>
+                                <th>Sub-Classification</th>
+                                <th>Prioritization</th>
                                 <th>Status</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="documentsTableBody">
                             <?php if (count($incoming_documents) > 0): ?>
                                 <?php foreach ($incoming_documents as $doc): ?>
-                                    <tr>
-                                        <td><strong><?php echo htmlspecialchars($doc['tracking_number'] ?? 'N/A'); ?></strong></td>
+                                    <?php 
+                                        // Use direct columns first, fallback to JSON if not available
+                                        $additionalData = $doc['doc_notes'] ? json_decode($doc['doc_notes'], true) : [];
+                                        $classification = $doc['classification'] ?? $additionalData['classification'] ?? 'N/A';
+                                        $sub_classification = $doc['sub_classification'] ?? $additionalData['sub_classification'] ?? 'N/A';
+                                        $priority = $doc['priority'] ?? $additionalData['priority'] ?? 'N/A';
+                                        $dateReceived = $doc['date_received'] ?? $additionalData['date_received'] ?? $doc['date_sent'];
+                                        $sender = $doc['sender_name'] ?? $additionalData['sender'] ?? 'N/A';
+                                        $trackingCode = $doc['tracking_number'] ?? 'N/A';
+                                        $description = $doc['description'] ?? '';
+                                        $filterDate = $dateReceived ? date('Y-m-d', strtotime($dateReceived)) : '';
+                                        $keywordSource = strtolower(trim(($trackingCode ?? '') . ' ' . ($doc['title'] ?? '') . ' ' . ($sender ?? '') . ' ' . ($description ?? '')));
+                                    ?>
+                                    <tr data-filter-row="true" data-keywords="<?php echo htmlspecialchars($keywordSource); ?>" data-sender="<?php echo htmlspecialchars(strtolower($sender)); ?>" data-priority="<?php echo htmlspecialchars($priority); ?>" data-date="<?php echo htmlspecialchars($filterDate); ?>">
+                                        <td><strong><?php echo htmlspecialchars($trackingCode); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($doc['assigner_office'] ?? '-'); ?></td>
                                         <td><?php echo htmlspecialchars($doc['title'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars(trim(($doc['sender_first_name'] ?? '') . ' ' . ($doc['sender_last_name'] ?? '')) ?: '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($doc['document_type'] ?? '-'); ?></td>
-                                        <td><?php echo $doc['date_sent'] ? date('M d, Y h:i A', strtotime($doc['date_sent'])) : '-'; ?></td>
+                                        <td><?php echo htmlspecialchars($sender); ?></td>
                                         <td><?php echo htmlspecialchars($doc['description'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($doc['assignment_notes'] ?? '-'); ?></td>
+                                        <td><?php echo $dateReceived ? date('M d, Y', strtotime($dateReceived)) : '-'; ?></td>
+                                        <td>
+                                            <?php 
+                                                $classificationClass = 'badge-info';
+                                                if ($classification === 'Letter') $classificationClass = 'badge-classification-letter';
+                                                else if ($classification === 'Invitation') $classificationClass = 'badge-classification-invitation';
+                                                else if ($classification === 'Travel-Related Communication') $classificationClass = 'badge-classification-travel';
+                                                else if ($classification === 'Indorsement') $classificationClass = 'badge-classification-indorsement';
+                                            ?>
+                                            <span class="badge <?php echo $classificationClass; ?>" style="font-size: 11px; padding: 5px 10px;"><?php echo htmlspecialchars($classification); ?></span>
+                                        </td>
+                                        <td><?php echo htmlspecialchars($sub_classification); ?></td>
+                                        <td>
+                                            <?php 
+                                                $priorityClass = 'badge-primary';
+                                                if ($priority === 'Urgent') $priorityClass = 'badge-warning';
+                                                else if ($priority === 'Critical') $priorityClass = 'badge-danger';
+                                            ?>
+                                            <span class="badge <?php echo $priorityClass; ?>" style="font-size: 11px; padding: 5px 10px;"><?php echo htmlspecialchars($priority); ?></span>
+                                        </td>
                                         <td><?php echo htmlspecialchars($doc['assignment_status'] ?? 'Pending'); ?></td>
                                         <td>
                                             <button class="btn-sm btn-info" onclick="viewIncomingDocument(<?php echo (int)$doc['assignment_id']; ?>)">
@@ -644,9 +710,12 @@ $conn->close();
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
+                                <tr id="emptyFilterRow" style="display: none;">
+                                    <td colspan="11" class="empty-state">No incoming documents</td>
+                                </tr>
                             <?php else: ?>
-                                <tr>
-                                    <td colspan="9" class="empty-state">No incoming documents</td>
+                                <tr id="emptyFilterRow">
+                                    <td colspan="11" class="empty-state">No incoming documents</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
@@ -656,92 +725,248 @@ $conn->close();
         </div>
     </div>
 
+    <!-- Confirmation Modal -->
+    <div id="confirmationModal" class="modal" style="z-index: 5001;">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 id="confirmationTitle">Confirm Action</h3>
+                <button class="modal-close" onclick="closeConfirmationModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmationMessage" style="font-size: 16px; line-height: 1.6; margin: 0;"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeConfirmationModal()">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-success" id="confirmActionBtn" onclick="executeConfirmAction()">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Return Reason Modal -->
+    <div id="returnReasonModal" class="modal" style="z-index: 5002;">
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3>Return Document</h3>
+                <button class="modal-close" onclick="closeReturnReasonModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="returnReasonInput">Reason for returning this document</label>
+                    <textarea id="returnReasonInput" rows="5" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); resize: vertical; font-size: 14px;" placeholder="Enter the reason here..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeReturnReasonModal()">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-warning" onclick="submitReturnReason()">
+                    <i class="fas fa-undo"></i> Return Document
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Viewer Modal -->
+    <div id="fileViewerModal" class="modal">
+        <div class="modal-content" style="max-width: 60vw; max-height: 90vh; overflow: auto;">
+            <div class="modal-header">
+                <h3 id="fileViewerTitle">File Viewer</h3>
+                <button class="modal-close" onclick="closeFileViewerModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <img id="fileViewerImage" src="" style="max-width: 100%; max-height: calc(90vh - 150px); object-fit: contain;" alt="Document Image">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-info" onclick="downloadIncomingFile()">
+                    <i class="fas fa-download"></i> Download
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeFileViewerModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div id="viewIncomingModal" class="modal">
         <div class="modal-content modal-large">
             <div class="modal-header">
-                <h3>Document Details</h3>
+                <h3>Document Details &amp; Preview</h3>
                 <button class="modal-close" onclick="closeIncomingModal()">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
 
             <div class="modal-body">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px;">
-                    <div class="form-group" style="min-width: 150px;">
-                        <label style="font-size: 11px;">Tracking Code</label>
-                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;">
-                            <span id="viewTrackingCode">-</span>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 20px; max-height: 600px; overflow-y: auto;">
+                    <div id="documentDetailsModalContent">
+                        <div class="document-details">
+                            <div class="details-section">
+                                <h4 style="margin-bottom: 16px; font-size: 16px; font-weight: 600;">Document Information</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                                    <div class="detail-row">
+                                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Document ID</label>
+                                        <span style="font-size: 14px; font-weight: 600; color: #333;" id="viewDocumentID">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Subject/Title</label>
+                                        <span style="font-size: 14px; color: #333;" id="viewTitle">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Sender</label>
+                                        <span style="font-size: 14px; color: #333;" id="viewSender">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Date Received</label>
+                                        <span style="font-size: 14px; color: #333;" id="viewDateReceived">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Classification</label>
+                                        <span id="viewClassification">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Sub-Classification</label>
+                                        <span style="font-size: 14px; color: #333;" id="viewSubClassification">-</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Prioritization</label>
+                                        <span id="viewPrioritization">-</span>
+                                    </div>
+                                </div>
+                                <div class="detail-row" style="margin-top: 16px;">
+                                    <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Description</label>
+                                    <span style="font-size: 14px; color: #333; display: block; line-height: 1.6;" id="viewDescription">-</span>
+                                </div>
+                                <div class="detail-row" style="margin-top: 16px;">
+                                    <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Created Date</label>
+                                    <span style="font-size: 14px; color: #333;" id="viewCreatedDate">-</span>
+                                </div>
+                                
+                                <div class="detail-row" style="margin-top: 16px;">
+                                    <label style="font-weight: 600; color: #666; font-size: 12px; margin-bottom: 4px; display: block;">Attached File</label>
+                                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                        <span style="font-size: 14px; color: #333; flex: 1;" id="viewFileName">-</span>
+                                        <button type="button" class="btn btn-sm btn-primary" id="viewFileBtn" onclick="viewIncomingFile()" style="display: none;">
+                                            <i class="fas fa-eye"></i> View
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-info" id="downloadFileBtn" onclick="downloadIncomingFile()" style="display: none;">
+                                            <i class="fas fa-download"></i> Download
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="form-group" style="min-width: 150px;">
-                        <label style="font-size: 11px;">Document Type</label>
-                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;" id="viewDocumentType">
-                            -
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="min-width: 200px;">
-                        <label style="font-size: 11px;">Title</label>
-                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="viewTitle">
-                            -
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="min-width: 150px;">
-                        <label style="font-size: 11px;">Assigned By</label>
-                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;" id="viewAssignedBy">
-                            -
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="min-width: 150px;">
-                        <label style="font-size: 11px;">Assigned At</label>
-                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;" id="viewAssignedAt">
-                            -
-                        </div>
-                    </div>
-
-                    <div class="form-group" style="min-width: 120px;">
-                        <label style="font-size: 11px;">Status</label>
-                        <div style="padding: 8px; background-color: var(--bg-light); border-radius: var(--radius-md); font-weight: 500; font-size: 13px;" id="viewStatus">
-                            -
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-group" style="margin-top: 16px;" id="viewFormDetails">
-                    <label>Form Details</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
-                        -
-                    </div>
-                </div>
-
-                <div class="form-group" id="viewDigitalPaperPreview">
-                    <label>Document Preview</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 80px; max-height: 200px; overflow-y: auto;">
-                        -
-                    </div>
-                </div>
-
-                <div class="form-group" id="viewNotes">
-                    <label>Notes</label>
-                    <div style="padding: 10px; background-color: var(--bg-light); border-radius: var(--radius-md); min-height: 60px;">
-                        -
                     </div>
                 </div>
             </div>
 
             <div class="modal-footer">
-                <button type="button" class="btn btn-success" id="modalReceiveBtn" onclick="markCurrentAsReceived()">
-                    <i class="fas fa-check"></i> Received
+                <button type="button" class="btn btn-success" id="approveBtn" onclick="approveIncomingDocument()" style="display: none;">
+                    <i class="fas fa-check"></i> Approve
                 </button>
-                <button type="button" class="btn btn-secondary" onclick="closeIncomingModal()">Close</button>
+                <button type="button" class="btn btn-warning" id="returnBtn" onclick="returnIncomingDocument()" style="display: none;">
+                    <i class="fas fa-undo"></i> Return Document
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="closeIncomingModal()">
+                    <i class="fas fa-times"></i> Close
+                </button>
             </div>
         </div>
     </div>
 
     <script>
+        function applyFilters() {
+            const keyword = (document.getElementById('keywordFilter')?.value || '').toLowerCase();
+            const sender = (document.getElementById('senderFilter')?.value || '').toLowerCase();
+            const priority = document.getElementById('priorityFilter')?.value || '';
+            const dateFromValue = document.getElementById('dateFromFilter')?.value || '';
+            const dateToValue = document.getElementById('dateToFilter')?.value || '';
+            const dateFrom = dateFromValue ? new Date(dateFromValue) : null;
+            const dateTo = dateToValue ? new Date(dateToValue) : null;
+
+            const rows = document.querySelectorAll('#documentsTableBody tr[data-filter-row="true"]');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const rowKeywords = row.dataset.keywords || '';
+                const rowSender = row.dataset.sender || '';
+                const rowPriority = row.dataset.priority || '';
+                const rowDateValue = row.dataset.date || '';
+                const rowDate = rowDateValue ? new Date(rowDateValue) : null;
+
+                if (keyword && !rowKeywords.includes(keyword)) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                if (sender && !rowSender.includes(sender)) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                if (priority && rowPriority !== priority) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                if (dateFrom && (!rowDate || rowDate < dateFrom)) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                if (dateTo && rowDate) {
+                    const dateToEnd = new Date(dateTo);
+                    dateToEnd.setDate(dateToEnd.getDate() + 1);
+                    if (rowDate >= dateToEnd) {
+                        row.style.display = 'none';
+                        return;
+                    }
+                } else if (dateTo && !rowDate) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                row.style.display = '';
+                visibleCount += 1;
+            });
+
+            const emptyRow = document.getElementById('emptyFilterRow');
+            if (emptyRow) {
+                emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+            }
+        }
+
+        function clearFilters() {
+            const keywordInput = document.getElementById('keywordFilter');
+            const senderInput = document.getElementById('senderFilter');
+            const prioritySelect = document.getElementById('priorityFilter');
+            const dateFromInput = document.getElementById('dateFromFilter');
+            const dateToInput = document.getElementById('dateToFilter');
+
+            if (keywordInput) keywordInput.value = '';
+            if (senderInput) senderInput.value = '';
+            if (prioritySelect) prioritySelect.value = '';
+            if (dateFromInput) dateFromInput.value = '';
+            if (dateToInput) dateToInput.value = '';
+            applyFilters();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('keywordFilter')?.addEventListener('input', applyFilters);
+            document.getElementById('senderFilter')?.addEventListener('input', applyFilters);
+            document.getElementById('priorityFilter')?.addEventListener('change', applyFilters);
+            document.getElementById('dateFromFilter')?.addEventListener('change', applyFilters);
+            document.getElementById('dateToFilter')?.addEventListener('change', applyFilters);
+            applyFilters();
+        });
+
         let selectedIncomingAssignmentId = null;
 
         function safeParseJson(text) {
@@ -760,6 +985,21 @@ $conn->close();
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
         }
+        function formatDisplayDate(value) {
+            const text = String(value || '').trim();
+            if (!text || text === 'N/A' || text === '0000-00-00 00:00:00') {
+                return '-';
+            }
+
+            const parsedDate = new Date(text);
+            if (Number.isNaN(parsedDate.getTime())) {
+                return '-';
+            }
+
+            return parsedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+                                        $dateReceivedTs = $dateReceived ? strtotime($dateReceived) : false;
+                                        $filterDate = $dateReceivedTs ? date('Y-m-d', $dateReceivedTs) : '';
 
         function formatArray(value) {
             if (!Array.isArray(value) || value.length === 0) {
@@ -831,20 +1071,72 @@ $conn->close();
                         const content = safeParseJson(assignment.doc_notes);
                         selectedIncomingAssignmentId = assignmentId;
 
+                        // Store current file path for view/download - use direct column first
+                        window.currentIncomingFilePath = assignment.file_path || content.file_path || null;
 
-                        document.getElementById('viewTrackingCode').textContent = assignment.tracking_number || '-';
-                        document.getElementById('viewDocumentType').textContent = assignment.document_type || '-';
+                        // Populate modal with data - use direct columns first, fallback to JSON
+                        document.getElementById('viewDocumentID').textContent = assignment.tracking_number || '-';
                         document.getElementById('viewTitle').textContent = assignment.title || '-';
-                        // viewDescription does not exist in the modal, so skip it
-                        document.getElementById('viewAssignedBy').textContent = ((assignment.assigner_first_name || '') + ' ' + (assignment.assigner_last_name || '')).trim() || '-';
-                        document.getElementById('viewAssignedAt').textContent = assignment.assigned_at ? new Date(assignment.assigned_at).toLocaleString() : '-';
-                        document.getElementById('viewStatus').textContent = assignment.assignment_status || '-';
-                        document.getElementById('viewNotes').textContent = assignment.assignment_notes || '-';
-                        document.getElementById('viewFormDetails').innerHTML = renderIncomingFormDetails(assignment, content);
-                        document.getElementById('viewDigitalPaperPreview').innerHTML = generateIncomingPreview(assignment, content);
+                        document.getElementById('viewSender').textContent = assignment.sender_name || content.sender || '-';
+                        
+                        const dateReceived = assignment.date_received || content.date_received;
+                        document.getElementById('viewDateReceived').textContent = formatDisplayDate(dateReceived);
+                        document.getElementById('viewDescription').textContent = assignment.description || '-';
+                        document.getElementById('viewCreatedDate').textContent = assignment.date_sent ? new Date(assignment.date_sent).toLocaleString() : '-';
+                        
+                        // Classification - use direct column first
+                        const classification = assignment.classification || content.classification || 'N/A';
+                        let classificationClass = 'badge-info';
+                        if (classification === 'Letter') classificationClass = 'badge-classification-letter';
+                        else if (classification === 'Invitation') classificationClass = 'badge-classification-invitation';
+                        else if (classification === 'Travel-Related Communication') classificationClass = 'badge-classification-travel';
+                        else if (classification === 'Indorsement') classificationClass = 'badge-classification-indorsement';
+                        
+                        document.getElementById('viewClassification').innerHTML = `<span class="badge ${classificationClass}" style="font-size: 11px; padding: 5px 10px;">${escapeText(classification)}</span>`;
+                        
+                        // Sub-Classification - use direct column first
+                        const subClassification = assignment.sub_classification || content.sub_classification || 'N/A';
+                        document.getElementById('viewSubClassification').textContent = escapeText(subClassification);
+                        
+                        // Prioritization - use direct column first
+                        const priority = assignment.priority || content.priority || 'N/A';
+                        let priorityClass = 'badge-primary';
+                        if (priority === 'Urgent') priorityClass = 'badge-warning';
+                        else if (priority === 'Critical') priorityClass = 'badge-danger';
+                        
+                        document.getElementById('viewPrioritization').innerHTML = `<span class="badge ${priorityClass}" style="font-size: 11px; padding: 5px 10px;">${escapeText(priority)}</span>`;
+                        
+                        // File handling - use direct column first
+                        const filePath = assignment.file_path || content.file_path;
+                        if (filePath) {
+                            const fileName = filePath.split('/').pop();
+                            document.getElementById('viewFileName').textContent = fileName;
+                            
+                            const fileExt = fileName.split('.').pop().toLowerCase();
+                            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'].includes(fileExt);
+                            const isPDF = fileExt === 'pdf';
+                            
+                            if (isImage || isPDF) {
+                                document.getElementById('viewFileBtn').style.display = 'inline-block';
+                            } else {
+                                document.getElementById('viewFileBtn').style.display = 'none';
+                            }
+                            document.getElementById('downloadFileBtn').style.display = 'inline-block';
+                        } else {
+                            document.getElementById('viewFileName').textContent = 'No attachment';
+                            document.getElementById('viewFileBtn').style.display = 'none';
+                            document.getElementById('downloadFileBtn').style.display = 'none';
+                        }
 
-                        const canReceive = assignment.assignment_status === 'Pending' || assignment.assignment_status === 'Forwarded';
-                        document.getElementById('modalReceiveBtn').style.display = canReceive ? 'inline-flex' : 'none';
+                        // Show/hide action buttons based on status
+                        const status = assignment.status || 'Pending';
+                        if (status === 'Pending' || status === 'Submitted to Administrative Office') {
+                            document.getElementById('approveBtn').style.display = 'inline-block';
+                            document.getElementById('returnBtn').style.display = 'inline-block';
+                        } else {
+                            document.getElementById('approveBtn').style.display = 'none';
+                            document.getElementById('returnBtn').style.display = 'none';
+                        }
 
                         document.getElementById('viewIncomingModal').classList.add('active');
                     } else {
@@ -858,9 +1150,231 @@ $conn->close();
                 });
         }
 
+        function viewIncomingFile() {
+            if (!window.currentIncomingFilePath) {
+                alert('No file to view');
+                return;
+            }
+            
+            const filePath = window.currentIncomingFilePath;
+            const fileName = filePath.split('/').pop();
+            const fileExt = fileName.split('.').pop().toLowerCase();
+            const isPDF = fileExt === 'pdf';
+            
+            if (isPDF) {
+                // Open PDF in new tab
+                window.open('view-document-file.php?path=' + encodeURIComponent(filePath), '_blank');
+            } else {
+                // Show image in modal
+                const url = 'view-document-file.php?path=' + encodeURIComponent(filePath);
+                document.getElementById('fileViewerTitle').textContent = 'Viewing: ' + fileName;
+                document.getElementById('fileViewerImage').src = url;
+                document.getElementById('fileViewerModal').classList.add('active');
+            }
+        }
+
+        function closeFileViewerModal() {
+            document.getElementById('fileViewerModal').classList.remove('active');
+            document.getElementById('fileViewerImage').src = '';
+        }
+
+        function downloadIncomingFile() {
+            if (!window.currentIncomingFilePath) {
+                alert('No file to download');
+                return;
+            }
+            const fileName = window.currentIncomingFilePath.split('/').pop();
+            const url = 'get-document-file.php?path=' + encodeURIComponent(window.currentIncomingFilePath);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         function closeIncomingModal() {
             document.getElementById('viewIncomingModal').classList.remove('active');
             selectedIncomingAssignmentId = null;
+        }
+
+        var pendingConfirmAction = null;
+        var pendingConfirmData = null;
+
+        function showConfirmationModal(title, message, actionType) {
+            document.getElementById('confirmationTitle').textContent = title;
+            document.getElementById('confirmationMessage').textContent = message;
+            
+            const confirmBtn = document.getElementById('confirmActionBtn');
+            if (actionType === 'approve') {
+                confirmBtn.classList.remove('btn-warning');
+                confirmBtn.classList.add('btn-success');
+                confirmBtn.textContent = ' Approve';
+                confirmBtn.innerHTML = '<i class="fas fa-check"></i> Approve';
+            } else if (actionType === 'return') {
+                confirmBtn.classList.remove('btn-success');
+                confirmBtn.classList.add('btn-warning');
+                confirmBtn.textContent = ' Return Document';
+                confirmBtn.innerHTML = '<i class="fas fa-undo"></i> Return Document';
+            }
+            
+            pendingConfirmAction = actionType;
+            document.getElementById('confirmationModal').classList.add('active');
+        }
+
+        function closeConfirmationModal() {
+            document.getElementById('confirmationModal').classList.remove('active');
+            pendingConfirmAction = null;
+            pendingConfirmData = null;
+        }
+
+        function executeConfirmAction() {
+            if (pendingConfirmAction === 'approve') {
+                performApprove();
+            } else if (pendingConfirmAction === 'return') {
+                performReturn();
+            }
+            closeConfirmationModal();
+        }
+
+        function approveIncomingDocument() {
+            if (!selectedIncomingAssignmentId) {
+                alert('No document selected');
+                return;
+            }
+
+            showConfirmationModal(
+                'Approve Document',
+                'Are you sure you want to approve this document?',
+                'approve'
+            );
+        }
+
+        function performApprove() {
+            fetch('incoming-handler.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'approve',
+                    id: selectedIncomingAssignmentId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Document approved successfully');
+                    closeIncomingModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to approve document'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error approving document');
+            });
+        }
+
+        function returnIncomingDocument() {
+            if (!selectedIncomingAssignmentId) {
+                alert('No document selected');
+                return;
+            }
+
+            const reasonInput = document.getElementById('returnReasonInput');
+            const modal = document.getElementById('returnReasonModal');
+            
+            if (!reasonInput || !modal) {
+                alert('Error: Return modal not found on page');
+                return;
+            }
+            
+            reasonInput.value = '';
+            modal.classList.add('active');
+            reasonInput.focus();
+        }
+
+        function closeReturnReasonModal() {
+            document.getElementById('returnReasonModal').classList.remove('active');
+        }
+
+        function submitReturnReason() {
+            const reasonInput = document.getElementById('returnReasonInput');
+            
+            if (!reasonInput) {
+                alert('Error: Return reason form not found');
+                return;
+            }
+            
+            const reason = (reasonInput.value || '').trim();
+
+            if (!reason) {
+                alert('Please provide a reason for returning the document');
+                reasonInput.focus();
+                return;
+            }
+
+            if (!selectedIncomingAssignmentId) {
+                alert('Error: No assignment selected');
+                return;
+            }
+
+            pendingConfirmData = { reason: reason };
+            closeReturnReasonModal();
+            showConfirmationModal(
+                'Return Document',
+                `Are you sure you want to return this document?\n\nReason: ${reason}`,
+                'return'
+            );
+        }
+
+        function performReturn() {
+            // Validate that we have the required data
+            if (!selectedIncomingAssignmentId) {
+                alert('Error: No assignment selected');
+                return;
+            }
+            
+            if (!pendingConfirmData || !pendingConfirmData.reason) {
+                alert('Error: Return reason not set');
+                return;
+            }
+
+            fetch('incoming-handler.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    action: 'return',
+                    id: selectedIncomingAssignmentId,
+                    reason: pendingConfirmData.reason
+                })
+            })
+            .then(response => {
+                // Check if response is actually JSON
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error('Server error: ' + response.status + ' - ' + text);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    alert('Document returned successfully');
+                    closeIncomingModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to return document'));
+                }
+            })
+            .catch(error => {
+                console.error('Return error:', error);
+                alert('Error returning document: ' + error.message);
+            });
         }
 
         function markCurrentAsReceived() {

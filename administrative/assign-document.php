@@ -703,7 +703,7 @@ $conn->close();
         }
     </style>
 </head>
-<body>
+<body class="admin-theme">
     <div class="admin-page-container">
         <!-- Sidebar Navigation -->
         <div class="admin-sidebar">
@@ -729,18 +729,6 @@ $conn->close();
                         </a>
                     </li>
                     <li>
-                        <a href="documententry.php" class="admin-nav-item">
-                            <i class="fas fa-file-upload"></i>
-                            <span>Document Entry</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="assign-document.php" class="admin-nav-item active">
-                            <i class="fas fa-file-export"></i>
-                            <span>Assign Documents</span>
-                        </a>
-                    </li>
-                    <li>
                         <a href="incoming.php" class="admin-nav-item">
                             <i class="fas fa-inbox"></i>
                             <span>Incoming</span>
@@ -755,13 +743,7 @@ $conn->close();
                     <li>
                         <a href="received.php" class="admin-nav-item">
                             <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="returned.php" class="admin-nav-item">
-                            <i class="fas fa-undo"></i>
-                            <span>Returned</span>
+                            <span>Approved</span>
                         </a>
                     </li>
                     <li>
@@ -770,12 +752,12 @@ $conn->close();
                             <span>Finished</span>
                         </a>
                     </li>
-                    <li>
-                        <a href="archive.php" class="admin-nav-item">
-                            <i class="fas fa-archive"></i>
-                            <span>Archive</span>
-                        </a>
-                    </li>
+                        <li>
+                            <a href="returned.php" class="admin-nav-item">
+                                <i class="fas fa-undo"></i>
+                                <span>Returned</span>
+                            </a>
+                        </li>
                 </ul>
             </nav>
 
@@ -814,6 +796,42 @@ $conn->close();
                     </button>
                 </div>
 
+                <div style="background-color: var(--bg-white); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-md);">
+                    <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 16px; font-weight: 600;">Filters</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Search Keyword</label>
+                            <input type="text" id="keywordFilter" placeholder="Search title, sender, description..." style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Sender</label>
+                            <input type="text" id="senderFilter" placeholder="Filter by sender..." style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Prioritization</label>
+                            <select id="priorityFilter" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                                <option value="">All Priorities</option>
+                                <option value="Normal">Normal</option>
+                                <option value="Urgent">Urgent</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Date From</label>
+                            <input type="date" id="dateFromFilter" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-dark);">Date To</label>
+                            <input type="date" id="dateToFilter" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 13px;">
+                        </div>
+                        <div style="display: flex; align-items: flex-end;">
+                            <button onclick="clearFilters()" style="width: 100%; padding: 10px 12px; background-color: #e0e0e0; border: none; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-dark); transition: all 0.3s ease;" onmouseover="this.style.backgroundColor='#d0d0d0'" onmouseout="this.style.backgroundColor='#e0e0e0'">
+                                <i class="fas fa-redo"></i> Clear Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
@@ -829,10 +847,20 @@ $conn->close();
                                 <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="documentsTableBody">
                             <?php if (count($assignments) > 0): ?>
                                 <?php foreach ($assignments as $assignment): ?>
-                                    <tr>
+                                    <?php
+                                        $docNotes = $assignment['notes'] ? json_decode($assignment['notes'], true) : [];
+                                        $senderName = trim(($assignment['sender_first_name'] ?? '') . ' ' . ($assignment['sender_last_name'] ?? ''));
+                                        $trackingCode = $assignment['tracking_number'] ?? 'N/A';
+                                        $description = $assignment['description'] ?? '';
+                                        $priorityValue = $docNotes['priority'] ?? 'N/A';
+                                        $dateSent = $assignment['date_sent'] ?? $assignment['assigned_at'] ?? '';
+                                        $filterDate = $dateSent ? date('Y-m-d', strtotime($dateSent)) : '';
+                                        $keywordSource = strtolower(trim(($trackingCode ?? '') . ' ' . ($assignment['title'] ?? '') . ' ' . ($senderName ?? '') . ' ' . ($description ?? '') . ' ' . ($assignment['notes'] ?? '')));
+                                    ?>
+                                    <tr data-filter-row="true" data-keywords="<?php echo htmlspecialchars($keywordSource); ?>" data-sender="<?php echo htmlspecialchars(strtolower($senderName)); ?>" data-priority="<?php echo htmlspecialchars($priorityValue); ?>" data-date="<?php echo htmlspecialchars($filterDate); ?>">
                                         <td>
                                             <strong><?php echo htmlspecialchars($assignment['tracking_number'] ?? 'N/A'); ?></strong>
                                         </td>
@@ -861,8 +889,11 @@ $conn->close();
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
+                                <tr id="emptyFilterRow" style="display: none;">
+                                    <td colspan="10" class="empty-state">No documents assigned yet</td>
+                                </tr>
                             <?php else: ?>
-                                <tr>
+                                <tr id="emptyFilterRow">
                                     <td colspan="10" class="empty-state">No documents assigned yet</td>
                                 </tr>
                             <?php endif; ?>
@@ -1050,12 +1081,94 @@ $conn->close();
     </div>
 
     <script>
+        function applyFilters() {
+            const keyword = (document.getElementById('keywordFilter')?.value || '').toLowerCase();
+            const sender = (document.getElementById('senderFilter')?.value || '').toLowerCase();
+            const priority = document.getElementById('priorityFilter')?.value || '';
+            const dateFromValue = document.getElementById('dateFromFilter')?.value || '';
+            const dateToValue = document.getElementById('dateToFilter')?.value || '';
+            const dateFrom = dateFromValue ? new Date(dateFromValue) : null;
+            const dateTo = dateToValue ? new Date(dateToValue) : null;
+
+            const rows = document.querySelectorAll('#documentsTableBody tr[data-filter-row="true"]');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const rowKeywords = row.dataset.keywords || '';
+                const rowSender = row.dataset.sender || '';
+                const rowPriority = row.dataset.priority || '';
+                const rowDateValue = row.dataset.date || '';
+                const rowDate = rowDateValue ? new Date(rowDateValue) : null;
+
+                if (keyword && !rowKeywords.includes(keyword)) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                if (sender && !rowSender.includes(sender)) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                if (priority && rowPriority !== priority) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                if (dateFrom && (!rowDate || rowDate < dateFrom)) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                if (dateTo && rowDate) {
+                    const dateToEnd = new Date(dateTo);
+                    dateToEnd.setDate(dateToEnd.getDate() + 1);
+                    if (rowDate >= dateToEnd) {
+                        row.style.display = 'none';
+                        return;
+                    }
+                } else if (dateTo && !rowDate) {
+                    row.style.display = 'none';
+                    return;
+                }
+
+                row.style.display = '';
+                visibleCount += 1;
+            });
+
+            const emptyRow = document.getElementById('emptyFilterRow');
+            if (emptyRow) {
+                emptyRow.style.display = visibleCount === 0 ? '' : 'none';
+            }
+        }
+
+        function clearFilters() {
+            const keywordInput = document.getElementById('keywordFilter');
+            const senderInput = document.getElementById('senderFilter');
+            const prioritySelect = document.getElementById('priorityFilter');
+            const dateFromInput = document.getElementById('dateFromFilter');
+            const dateToInput = document.getElementById('dateToFilter');
+
+            if (keywordInput) keywordInput.value = '';
+            if (senderInput) senderInput.value = '';
+            if (prioritySelect) prioritySelect.value = '';
+            if (dateFromInput) dateFromInput.value = '';
+            if (dateToInput) dateToInput.value = '';
+            applyFilters();
+        }
+
         // Load offices on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadOffices();
             loadSenders();
             // Generate tracking code
             generateTrackingCode();
+            document.getElementById('keywordFilter')?.addEventListener('input', applyFilters);
+            document.getElementById('senderFilter')?.addEventListener('input', applyFilters);
+            document.getElementById('priorityFilter')?.addEventListener('change', applyFilters);
+            document.getElementById('dateFromFilter')?.addEventListener('change', applyFilters);
+            document.getElementById('dateToFilter')?.addEventListener('change', applyFilters);
+            applyFilters();
         });
 
         function viewAssignment(assignmentId) {

@@ -377,7 +377,7 @@ $conn->close();
                     <li>
                         <a href="documententry.php" class="nav-item" data-page="entry">
                             <i class="fas fa-file-upload"></i>
-                            <span>Document Entry</span>
+                            <span>Documents</span>
                         </a>
                     </li>
                     <li class="divider"></li>
@@ -396,13 +396,7 @@ $conn->close();
                     <li>
                         <a href="received.php" class="nav-item" data-page="received">
                             <i class="fas fa-envelope-open"></i>
-                            <span>Received</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="returned.php" class="nav-item" data-page="returned">
-                            <i class="fas fa-undo"></i>
-                            <span>Returned</span>
+                            <span>Approved</span>
                         </a>
                     </li>
                     <li>
@@ -415,6 +409,12 @@ $conn->close();
                         <a href="archive.php" class="nav-item" data-page="archive">
                             <i class="fas fa-archive"></i>
                             <span>Archive</span>
+                        </a>
+                    </li>
+                                        <li>
+                        <a href="reports.php" class="nav-item" data-page="reports">
+                            <i class="fas fa-chart-pie"></i>
+                            <span>Reports</span>
                         </a>
                     </li>
                     <li class="divider"></li>

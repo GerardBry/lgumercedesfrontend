@@ -90,6 +90,58 @@ if ($result) {
     }
 }
 
+// Document statistics for dashboard
+$doc_stats = [
+    'total_documents' => 0,
+    'incoming' => 0,
+    'outgoing' => 0,
+    'received' => 0,
+    'finished' => 0,
+    'archive' => 0
+];
+
+// Total documents
+$result = $conn->query("SELECT COUNT(*) as count FROM documents");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $doc_stats['total_documents'] = $row['count'];
+}
+
+// Incoming assignments (pending or forwarded)
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE status IN ('Pending','Forwarded')");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $doc_stats['incoming'] = $row['count'];
+}
+
+// Outgoing assignments (active assignments created by users)
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE assigned_by IS NOT NULL AND status NOT IN ('Completed','Archived','Returned')");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $doc_stats['outgoing'] = $row['count'];
+}
+
+// Received assignments
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE status = 'Received'");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $doc_stats['received'] = $row['count'];
+}
+
+// Finished / Completed assignments
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE status = 'Completed'");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $doc_stats['finished'] = $row['count'];
+}
+
+// Archived assignments
+$result = $conn->query("SELECT COUNT(*) as count FROM document_assignments WHERE status = 'Archived'");
+if ($result) {
+    $row = $result->fetch_assoc();
+    $doc_stats['archive'] = $row['count'];
+}
+
 $conn->close();
 ?>
 <!DOCTYPE html>
@@ -346,6 +398,30 @@ $conn->close();
             background: linear-gradient(135deg, #dc3545, #e74c3c);
         }
 
+        .admin-stat-icon.stat-total {
+            background: linear-gradient(135deg, #2196F3, #1976D2);
+        }
+
+        .admin-stat-icon.stat-incoming {
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+        }
+
+        .admin-stat-icon.stat-outgoing {
+            background: linear-gradient(135deg, #4CAF50, #388E3C);
+        }
+
+        .admin-stat-icon.stat-received {
+            background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+        }
+
+        .admin-stat-icon.stat-finished {
+            background: linear-gradient(135deg, #00BCD4, #0097A7);
+        }
+
+        .admin-stat-icon.stat-archive {
+            background: linear-gradient(135deg, #795548, #5D4037);
+        }
+
         .admin-stat-content {
             flex: 1;
         }
@@ -514,42 +590,62 @@ $conn->close();
                 <!-- Statistics Grid -->
                 <div class="admin-stats-grid">
                     <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-users">
-                            <i class="fas fa-users"></i>
+                        <div class="admin-stat-icon stat-total">
+                            <i class="fas fa-file-alt"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Total Users</div>
-                            <div class="admin-stat-value"><?php echo $stats['total_users']; ?></div>
+                            <div class="admin-stat-label">Total Documents</div>
+                            <div class="admin-stat-value"><?php echo $doc_stats['total_documents']; ?></div>
                         </div>
                     </div>
 
                     <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-pending">
-                            <i class="fas fa-hourglass-half"></i>
+                        <div class="admin-stat-icon stat-incoming">
+                            <i class="fas fa-inbox"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Pending Approval</div>
-                            <div class="admin-stat-value"><?php echo $stats['pending_users']; ?></div>
+                            <div class="admin-stat-label">Incoming</div>
+                            <div class="admin-stat-value"><?php echo $doc_stats['incoming']; ?></div>
                         </div>
                     </div>
 
                     <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-approved">
+                        <div class="admin-stat-icon stat-outgoing">
+                            <i class="fas fa-paper-plane"></i>
+                        </div>
+                        <div class="admin-stat-content">
+                            <div class="admin-stat-label">Outgoing</div>
+                            <div class="admin-stat-value"><?php echo $doc_stats['outgoing']; ?></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-stat-card">
+                        <div class="admin-stat-icon stat-received">
+                            <i class="fas fa-download"></i>
+                        </div>
+                        <div class="admin-stat-content">
+                            <div class="admin-stat-label">Received</div>
+                            <div class="admin-stat-value"><?php echo $doc_stats['received']; ?></div>
+                        </div>
+                    </div>
+
+                    <div class="admin-stat-card">
+                        <div class="admin-stat-icon stat-finished">
                             <i class="fas fa-check-circle"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Approved Users</div>
-                            <div class="admin-stat-value"><?php echo $stats['approved_users']; ?></div>
+                            <div class="admin-stat-label">Finished</div>
+                            <div class="admin-stat-value"><?php echo $doc_stats['finished']; ?></div>
                         </div>
                     </div>
 
                     <div class="admin-stat-card">
-                        <div class="admin-stat-icon stat-inactive">
-                            <i class="fas fa-ban"></i>
+                        <div class="admin-stat-icon stat-archive">
+                            <i class="fas fa-archive"></i>
                         </div>
                         <div class="admin-stat-content">
-                            <div class="admin-stat-label">Inactive Users</div>
-                            <div class="admin-stat-value"><?php echo $stats['inactive_users']; ?></div>
+                            <div class="admin-stat-label">Archive</div>
+                            <div class="admin-stat-value"><?php echo $doc_stats['archive']; ?></div>
                         </div>
                     </div>
                 </div>

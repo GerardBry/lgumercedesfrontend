@@ -1,0 +1,583 @@
+
+=== 2026-05-10 09:52:15 ===
+Fields received:
+  title: ''
+  sender: ''
+  classification: 'Letter'
+  sub_classification: ''
+  priority: 'Normal'
+VALIDATION FAILED: title, sender, date_received, sub_classification
+
+=== 2026-05-10 09:59:15 ===
+Fields received:
+  title: 'bakit ba'
+  sender: 'bakit ba'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778399955-6a003ad329462.pdf
+
+=== 2026-05-10 11:13:54 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778404434-6a004c520fb87.pdf
+
+=== 2026-05-10 11:35:20 ===
+Fields received:
+  title: 'asda'
+  sender: 'asd'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778405720-6a005158c4f02.jpg
+
+=== 2026-05-10 11:53:24 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'Provincial Kapitolyo'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778406804-6a005594a1777.jpg
+
+=== 2026-05-10 12:04:27 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'PRovincial Kapitolyo'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778407467-6a00582b19d33.jpg
+
+=== 2026-05-10 12:08:42 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'Seminar Workshop'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778407722-6a00592aa1299.pdf
+
+=== 2026-05-10 12:20:07 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'Provincial Kapitolyo'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778408407-6a005bd7c2c87.pdf
+
+=== 2026-05-10 12:24:51 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'Provincial Kapitolyo'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778408691-6a005cf36b0d3.jpg
+
+=== 2026-05-10 12:33:43 ===
+Fields received:
+  title: 'Seminar Workshop1'
+  sender: 'Kapitolyo'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778409223-6a005f07419a4.pdf
+
+=== 2026-05-11 06:02:13 ===
+Fields received:
+  title: 'Seminar'
+  sender: 'Provincial Capitol'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778472133-6a0154c5c6041.jpg
+
+=== 2026-05-11 06:32:38 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778473958-6a015be6d8534.pdf
+
+=== 2026-05-11 12:41:45 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778496105-6a01b2691b395.jpg
+
+=== 2026-05-11 12:44:41 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'Provincial Kapitolyo'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778496281-6a01b319ca1d2.jpg
+
+=== 2026-05-11 12:47:12 ===
+Fields received:
+  title: 'BLABLABLA'
+  sender: 'BLABLABLA'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778496432-6a01b3b0f1680.jpg
+
+=== 2026-05-11 12:48:27 ===
+Fields received:
+  title: 'hotdog'
+  sender: 'hotdog'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778496507-6a01b3fb5da74.jpg
+
+=== 2026-05-11 12:50:48 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'Provincial Kapitolyo'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778496648-6a01b4889c173.jpg
+
+=== 2026-05-11 12:58:42 ===
+Fields received:
+  title: 'Seminar workshop'
+  sender: 'kapitolyo'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778497122-6a01b662eede5.jpg
+
+=== 2026-05-11 13:03:51 ===
+Fields received:
+  title: 'Engineering'
+  sender: 'Engineering'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778497431-6a01b797505e7.jpg
+
+=== 2026-05-11 13:07:44 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778497664-6a01b880aa951.jpg
+
+=== 2026-05-11 13:13:57 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'Provincial Kapitolyo'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778498037-6a01b9f5db757.jpg
+
+=== 2026-05-11 15:51:46 ===
+Fields received:
+  title: 'Magsaya'
+  sender: 'Magsaya'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778507506-6a01def2dbcc8.jpg
+
+=== 2026-05-11 16:17:59 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778509079-6a01e517ca692.jpg
+
+=== 2026-05-11 19:46:23 ===
+Fields received:
+  title: 'Seminar Workshop'
+  sender: 'Provincial Kapitol'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778521583-6a0215ef4d5b7.jpg
+
+=== 2026-05-12 06:14:26 ===
+Fields received:
+  title: 'sdasd'
+  sender: 'asdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778559266-6a02a922a4750.jpg
+
+=== 2026-05-12 07:21:18 ===
+Fields received:
+  title: 'asda'
+  sender: 'asdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778563278-6a02b8ce71464.jpg
+
+=== 2026-05-12 08:01:13 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778565673-6a02c22924528.jpg
+
+=== 2026-05-12 08:06:20 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Urgent'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778565980-6a02c35c6d3e8.jpg
+
+=== 2026-05-12 08:20:39 ===
+Fields received:
+  title: 'asdas'
+  sender: 'dasdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778566839-6a02c6b739356.jpg
+
+=== 2026-05-12 09:52:03 ===
+Fields received:
+  title: 'asd'
+  sender: 'asdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778572323-6a02dc2364536.jpg
+
+=== 2026-05-12 11:59:14 ===
+Fields received:
+  title: 'Seminar Workshop PArt 1'
+  sender: 'provnincail kapitolyo 1'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Critical'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778579954-6a02f9f26d09a.jpg
+
+=== 2026-05-12 23:54:01 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778601241-6a034d196cbad.jpg
+
+=== 2026-05-13 00:41:11 ===
+Fields received:
+  title: 'asd'
+  sender: 'asd'
+  classification: 'Invitation'
+  sub_classification: 'Seminar/Training Invitation'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778604072-6a03582800361.jpg
+
+=== 2026-05-13 01:14:51 ===
+Fields received:
+  title: 'asdasda'
+  sender: 'dasdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778606091-6a03600beed8d.jpg
+
+=== 2026-05-13 01:16:24 ===
+Fields received:
+  title: 'asdas'
+  sender: 'dasdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0014-1778606184-6a036068ed83e.jpg
+
+=== 2026-05-13 14:59:21 ===
+Fields received:
+  title: 'asdasd'
+  sender: 'sdadasdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Mayor's Office
+  file_path: uploads/documents/DOC-0003-1778655561-6a0421495c2fe.jpg
+
+=== 2026-05-13 15:07:19 ===
+Fields received:
+  title: 'asda'
+  sender: 'sdadsad'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Mayor's Office
+  file_path: uploads/documents/DOC-0003-1778656040-6a042328001d5.jpg
+
+=== 2026-05-13 15:52:53 ===
+Fields received:
+  title: 'asda'
+  sender: 'sdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Mayor's Office
+  file_path: uploads/documents/DOC-0003-1778658773-6a042dd53f72d.jpg
+
+=== 2026-05-13 16:07:51 ===
+Fields received:
+  title: 'asdasd'
+  sender: 'as'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Mayor's Office
+  file_path: uploads/documents/DOC-0003-1778659671-6a04315755a36.jpg
+
+=== 2026-05-13 16:12:10 ===
+Fields received:
+  title: 'sadasd'
+  sender: 'asdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0015-1778659930-6a04325ae5aa2.jpg
+
+=== 2026-05-13 16:26:55 ===
+Fields received:
+  title: 'asda'
+  sender: 'sdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Local Civil Registrar
+  file_path: uploads/documents/DOC-0016-1778660815-6a0435cf373c2.jpg
+
+=== 2026-05-13 16:28:44 ===
+Fields received:
+  title: 'asda'
+  sender: 'sdasd'
+  classification: 'Letter'
+  sub_classification: 'Request Letter'
+  priority: 'Normal'
+Validation passed
+Checking file upload...
+File error code: 0
+About to insert document...
+  user_dept: Municipal Health Office
+  file_path: uploads/documents/DOC-0015-1778660924-6a04363c6e2fb.jpg

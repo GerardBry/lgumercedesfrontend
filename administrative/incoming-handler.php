@@ -3,16 +3,52 @@
  * Incoming Document Handler - Administrative Staff
  * Fetch document details for incoming assignments and mark as received
  */
+// Set error reporting to not display errors (log them instead)
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
 session_start();
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
+
+// Start output buffering to catch any stray output
+ob_start();
+
+set_exception_handler(function (Throwable $e) {
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Unhandled server error: ' . $e->getMessage()
+    ]);
+    exit;
+});
+
+register_shutdown_function(function () {
+    $error = error_get_last();
+    if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'message' => 'Fatal server error: ' . $error['message']
+        ]);
+    }
+});
 
 if (empty($_SESSION['user_id'])) {
+    ob_end_clean();
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'Administrative Assistant') {
+    ob_end_clean();
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Forbidden']);
     exit;
@@ -33,7 +69,15 @@ $user_id = $_SESSION['user_id'];
 require_once '../config/db_connect.php';
 require_once '../config/notification_helpers.php';
 
+// Clean any output buffered from includes
+ob_end_clean();
 
+// Validate database connection
+if (!isset($conn) || $conn->connect_error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+    exit;
+}
 $sql = "SELECT
         da.id,
         da.document_id,
@@ -52,6 +96,13 @@ $sql = "SELECT
         d.date_sent,
         d.notes as doc_notes,
         d.status,
+        d.sender_name,
+        d.date_received,
+        d.classification,
+        d.sub_classification,
+        d.priority,
+        d.deadline,
+        d.file_path,
         sender.first_name as sender_first_name,
         sender.last_name as sender_last_name,
         assigner.first_name as assigner_first_name,
@@ -101,6 +152,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     
     require_once '../config/db_connect.php';
     require_once '../config/notification_helpers.php';
+    
+    // Clean any output buffered from includes
+    ob_end_clean();
+    
+    // Validate database connection
+    if (!isset($conn) || $conn->connect_error) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+        exit;
+    }
     
     // Check if assignment exists and belongs to this admin
     $sql_check = "SELECT da.id, da.document_id, da.status 
@@ -218,6 +279,239 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     
     $conn->close();
     exit;
+}
+
+// Handle JSON POST requests
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $action = $input['action'] ?? null;
+    
+    if ($action === 'approve') {
+        $assignment_id = intval($input['id'] ?? 0);
+        $user_id = $_SESSION['user_id'];
+        
+        if ($assignment_id <= 0) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Missing assignment ID']);
+            exit;
+        }
+        
+        require_once '../config/db_connect.php';
+        require_once '../config/notification_helpers.php';
+        
+        // Clean any output buffered from includes
+        ob_end_clean();
+        
+        // Validate database connection
+        if (!isset($conn) || $conn->connect_error) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+            exit;
+        }
+        
+        // Check if assignment exists
+        $sql_check = "SELECT da.id, da.document_id, da.status, da.assigned_by, d.tracking_number
+                      FROM document_assignments da
+                      JOIN documents d ON da.document_id = d.id
+                      WHERE da.id = ? AND da.assigned_to = ?";
+        $stmt_check = $conn->prepare($sql_check);
+        if (!$stmt_check) {
+            throw new Exception("Prepare check failed: " . $conn->error);
+        }
+        $stmt_check->bind_param('ii', $assignment_id, $user_id);
+        $stmt_check->execute();
+        $result_check = $stmt_check->get_result();
+        
+        if ($result_check->num_rows === 0) {
+            $stmt_check->close();
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Assignment not found or access denied']);
+            exit;
+        }
+        
+        $row = $result_check->fetch_assoc();
+        $stmt_check->close();
+        
+        if ($row['status'] !== 'Pending' && $row['status'] !== 'Submitted to Administrative Office') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Only pending documents can be approved']);
+            exit;
+        }
+        
+        $document_id = $row['document_id'];
+        $assigned_by = $row['assigned_by'];
+        $tracking_number = $row['tracking_number'];
+        
+        $conn->begin_transaction();
+        try {
+            // Update assignment status
+            $sql_update = "UPDATE document_assignments SET status = 'Approved', received_at = NOW() WHERE id = ?";
+            $stmt_update = $conn->prepare($sql_update);
+            $stmt_update->bind_param('i', $assignment_id);
+            if (!$stmt_update->execute()) {
+                throw new Exception("Failed to update assignment");
+            }
+            $stmt_update->close();
+            
+            // Update document status
+            $sql_doc_update = "UPDATE documents SET status = 'Approved' WHERE id = ?";
+            $stmt_doc = $conn->prepare($sql_doc_update);
+            $stmt_doc->bind_param('i', $document_id);
+            if (!$stmt_doc->execute()) {
+                throw new Exception("Failed to update document");
+            }
+            $stmt_doc->close();
+            
+            // Create notification
+            $admin_name = $_SESSION['first_name'] ?? 'Administrative';
+            createCustomNotification(
+                $conn,
+                $assigned_by,
+                $document_id,
+                $assignment_id,
+                $tracking_number,
+                "Your document ($tracking_number) has been approved by Administrative",
+                'status_update',
+                'Pending',
+                'Approved'
+            );
+            
+            $conn->commit();
+            echo json_encode(['success' => true, 'message' => 'Document approved successfully']);
+        } catch (Throwable $e) {
+            $conn->rollback();
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+        }
+        $conn->close();
+        exit;
+    }
+    
+    if ($action === 'return') {
+        $assignment_id = intval($input['id'] ?? 0);
+        $reason = $input['reason'] ?? '';
+        $user_id = $_SESSION['user_id'];
+        
+        if ($assignment_id <= 0 || empty($reason)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Missing assignment ID or reason']);
+            exit;
+        }
+        
+        require_once '../config/db_connect.php';
+        require_once '../config/notification_helpers.php';
+        
+        // Clean any output buffered from includes
+        ob_end_clean();
+        
+        // Validate database connection
+        if (!isset($conn) || $conn->connect_error) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Database connection failed']);
+            exit;
+        }
+        
+        // Check if assignment exists
+        $sql_check = "SELECT da.id, da.document_id, da.status, da.assigned_by, d.tracking_number
+                      FROM document_assignments da
+                      JOIN documents d ON da.document_id = d.id
+                      WHERE da.id = ? AND da.assigned_to = ?";
+        $stmt_check = $conn->prepare($sql_check);
+        $stmt_check->bind_param('ii', $assignment_id, $user_id);
+        $stmt_check->execute();
+        $result_check = $stmt_check->get_result();
+        
+        if ($result_check->num_rows === 0) {
+            $stmt_check->close();
+            http_response_code(404);
+            echo json_encode(['success' => false, 'message' => 'Assignment not found or access denied']);
+            exit;
+        }
+        
+        $row = $result_check->fetch_assoc();
+        $stmt_check->close();
+        
+        if ($row['status'] !== 'Pending' && $row['status'] !== 'Submitted to Administrative Office') {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Only pending documents can be returned']);
+            exit;
+        }
+        
+        $document_id = $row['document_id'];
+        $assigned_by = $row['assigned_by'];
+        $tracking_number = $row['tracking_number'];
+        
+        $conn->begin_transaction();
+        try {
+            // Update assignment with return status.
+            // Some deployments may not yet have the returned_at column.
+            $hasReturnedAt = false;
+            $checkReturnedAtSql = "SHOW COLUMNS FROM document_assignments LIKE 'returned_at'";
+            $checkReturnedAtStmt = $conn->prepare($checkReturnedAtSql);
+            if (!$checkReturnedAtStmt) {
+                throw new Exception("Prepare column check failed: " . $conn->error);
+            }
+            if (!$checkReturnedAtStmt->execute()) {
+                throw new Exception("Execute column check failed: " . $checkReturnedAtStmt->error);
+            }
+            $checkReturnedAtResult = $checkReturnedAtStmt->get_result();
+            $hasReturnedAt = ($checkReturnedAtResult && $checkReturnedAtResult->num_rows > 0);
+            $checkReturnedAtStmt->close();
+
+            if ($hasReturnedAt) {
+                $sql_update = "UPDATE document_assignments SET status = 'Returned', returned_at = NOW(), notes = CONCAT(IFNULL(notes, ''), '\n\nReturn Reason: ', ?) WHERE id = ?";
+            } else {
+                $sql_update = "UPDATE document_assignments SET status = 'Returned', notes = CONCAT(IFNULL(notes, ''), '\n\nReturn Reason: ', ?) WHERE id = ?";
+            }
+            $stmt_update = $conn->prepare($sql_update);
+                if (!$stmt_update) {
+                    throw new Exception("Prepare update assignment failed: " . $conn->error);
+                }
+            $stmt_update->bind_param('si', $reason, $assignment_id);
+            if (!$stmt_update->execute()) {
+                throw new Exception("Failed to update assignment");
+            }
+            $stmt_update->close();
+            
+            // Update document status
+            $sql_doc_update = "UPDATE documents SET status = 'Returned' WHERE id = ?";
+            $stmt_doc = $conn->prepare($sql_doc_update);
+            if (!$stmt_doc) {
+                throw new Exception("Prepare update document failed: " . $conn->error);
+            }
+            $stmt_doc->bind_param('i', $document_id);
+            if (!$stmt_doc->execute()) {
+                throw new Exception("Failed to update document");
+            }
+            $stmt_doc->close();
+            
+            // Create notification with reason
+            $admin_name = $_SESSION['first_name'] ?? 'Administrative';
+            $notification_ok = createCustomNotification(
+                $conn,
+                $assigned_by,
+                $document_id,
+                $assignment_id,
+                $tracking_number,
+                "Your document ($tracking_number) was returned by Administrative. Reason: $reason",
+                'status_update',
+                'Pending',
+                'Returned'
+            );
+            if (!$notification_ok) {
+                throw new Exception("Failed to create notification");
+            }
+            
+            $conn->commit();
+            echo json_encode(['success' => true, 'message' => 'Document returned successfully']);
+        } catch (Throwable $e) {
+            $conn->rollback();
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+        }
+        $conn->close();
+        exit;
+    }
 }
 
 http_response_code(405);

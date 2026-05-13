@@ -73,6 +73,7 @@ if ($assignment_id > 0) {
     $sql = "SELECT 
             da.id as assignment_id,
             d.id,
+            d.doc_sequence_number,
             d.tracking_number,
             d.title,
             d.description,
@@ -81,6 +82,13 @@ if ($assignment_id > 0) {
             d.notes,
             d.created_at,
             d.status as document_status,
+            d.sender_name,
+            d.date_received,
+            d.classification,
+            d.sub_classification,
+            d.priority,
+            d.deadline,
+            d.file_path,
             da.notes as assignment_notes,
             da.status as assignment_status,
             da.assigned_at,
@@ -91,7 +99,7 @@ if ($assignment_id > 0) {
         FROM documents d
         JOIN document_assignments da ON d.id = da.document_id
         LEFT JOIN users u ON d.sender_id = u.id
-        WHERE da.id = ? AND (d.created_by = ? OR da.assigned_to = ?)
+        WHERE da.id = ? AND (da.assigned_to = ? OR da.assigned_by = ?)
         LIMIT 1";
     
     $stmt = $conn->prepare($sql);
@@ -115,8 +123,64 @@ if ($assignment_id > 0) {
     
     if ($result->num_rows > 0) {
         $document = $result->fetch_assoc();
-        $document = array_merge($document, parseCompletionFilePayload($document['completion_file'] ?? ''));
-        unset($document['completion_file']);
+    } else {
+        // If assignment query failed, try treating assignment_id as a document_id
+        // This handles cases where finished.php returns d.id instead of da.id
+        // For documents in Finished list, user already has access, so less restrictive check
+        $sql_doc_fallback = "SELECT 
+                NULL as assignment_id,
+                d.id,
+                d.doc_sequence_number,
+                d.tracking_number,
+                d.title,
+                d.description,
+                d.document_type,
+                d.date_sent,
+                d.notes,
+                d.created_at,
+                d.status as document_status,
+                d.sender_name,
+                d.date_received,
+                d.classification,
+                d.sub_classification,
+                d.priority,
+                d.deadline,
+                d.file_path,
+                NULL as assignment_notes,
+                NULL as assignment_status,
+                NULL as assigned_at,
+                NULL as completed_at,
+                NULL as completion_file,
+                u.first_name as sender_first_name,
+                u.last_name as sender_last_name
+            FROM documents d
+            LEFT JOIN users u ON d.sender_id = u.id
+            WHERE d.id = ?
+            LIMIT 1";
+        
+        $stmt_fallback = $conn->prepare($sql_doc_fallback);
+        if (!$stmt_fallback) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Database error']);
+            $conn->close();
+            exit;
+        }
+        
+        $stmt_fallback->bind_param('i', $assignment_id);
+        if (!$stmt_fallback->execute()) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $stmt_fallback->error]);
+            $stmt->close();
+            $stmt_fallback->close();
+            $conn->close();
+            exit;
+        }
+        
+        $result_fallback = $stmt_fallback->get_result();
+        if ($result_fallback->num_rows > 0) {
+            $document = $result_fallback->fetch_assoc();
+        }
+        $stmt_fallback->close();
     }
     $stmt->close();
 }
@@ -126,6 +190,7 @@ if ($document === null && $doc_id > 0) {
     // Fetch document created by current user
     $sql = "SELECT 
             d.id,
+            d.doc_sequence_number,
             d.tracking_number,
             d.title,
             d.description,
@@ -133,7 +198,14 @@ if ($document === null && $doc_id > 0) {
             d.date_sent,
             d.notes,
             d.created_at,
-            d.status
+            d.status,
+            d.sender_name,
+            d.date_received,
+            d.classification,
+            d.sub_classification,
+            d.priority,
+            d.deadline,
+            d.file_path
         FROM documents d
         WHERE d.id = ? AND d.created_by = ?";
 
@@ -146,13 +218,20 @@ if ($document === null && $doc_id > 0) {
     }
 
     $stmt->bind_param('ii', $doc_id, $user_id);
-    $stmt->execute();
+    if (!$stmt->execute()) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Database error: ' . $stmt->error]);
+        $stmt->close();
+        $conn->close();
+        exit;
+    }
     $result = $stmt->get_result();
 
     if ($result->num_rows === 0) {
         // If not created by user, check if assigned to user
-        $sql_assigned = "SELECT 
+            $sql_assigned = "SELECT 
                 d.id,
+                d.doc_sequence_number,
                 d.tracking_number,
                 d.title,
                 d.description,
@@ -160,10 +239,17 @@ if ($document === null && $doc_id > 0) {
                 d.date_sent,
                 d.notes,
                 d.created_at,
-            d.status
+            d.status,
+            d.sender_name,
+            d.date_received,
+            d.classification,
+            d.sub_classification,
+            d.priority,
+            d.deadline,
+            d.file_path
             FROM documents d
             JOIN document_assignments da ON d.id = da.document_id
-            WHERE d.id = ? AND da.assigned_to = ?";
+            WHERE d.id = ? AND (da.assigned_to = ? OR da.assigned_by = ? OR d.created_by = ?)";
         
         $stmt_assigned = $conn->prepare($sql_assigned);
         if (!$stmt_assigned) {
@@ -173,8 +259,15 @@ if ($document === null && $doc_id > 0) {
             exit;
         }
         
-        $stmt_assigned->bind_param('ii', $doc_id, $user_id);
-        $stmt_assigned->execute();
+        $stmt_assigned->bind_param('iiii', $doc_id, $user_id, $user_id, $user_id);
+        if (!$stmt_assigned->execute()) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Database error: ' . $stmt_assigned->error]);
+            $stmt->close();
+            $stmt_assigned->close();
+            $conn->close();
+            exit;
+        }
         $result = $stmt_assigned->get_result();
         
         if ($result->num_rows === 0) {
@@ -199,6 +292,20 @@ if ($document === null) {
     http_response_code(404);
     echo json_encode(['success' => false, 'message' => 'Document not found']);
     exit;
+}
+
+// Parse completion file if present
+if (isset($document['completion_file'])) {
+    $completionFileData = parseCompletionFilePayload($document['completion_file']);
+    $document['completion_file_name'] = $completionFileData['completion_file_name'];
+    $document['completion_file_type'] = $completionFileData['completion_file_type'];
+    $document['completion_file_path'] = $completionFileData['completion_file_path'];
+    $document['has_completion_file'] = $completionFileData['has_completion_file'];
+} else {
+    $document['completion_file_name'] = null;
+    $document['completion_file_type'] = null;
+    $document['completion_file_path'] = null;
+    $document['has_completion_file'] = false;
 }
 
 $conn->close();
